@@ -23,11 +23,7 @@ export default function LoginButton() {
       onClick={handleLogin}
       disabled={loading}
       data-testid="google-login-button"
-      className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-lg
-        bg-brand-crema text-brand-black font-medium text-base
-        hover:bg-brand-honey transition-colors duration-150
-        disabled:opacity-60 disabled:cursor-not-allowed
-        min-h-[44px]"
+      className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-lg bg-brand-crema text-brand-black font-medium text-base hover:bg-brand-honey transition-colors duration-150 disabled:opacity-60 disabled:cursor-not-allowed min-h-[44px]"
     >
       {loading ? (
         <>

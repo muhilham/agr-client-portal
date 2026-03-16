@@ -19,7 +19,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="id">
-      <body className={`${geistSans.variable} antialiased bg-brand-black text-brand-crema min-h-screen`}>
+      <body className={`${geistSans.variable} antialiased bg-brand-black text-brand-crema min-h-screen`} suppressHydrationWarning>
         {children}
       </body>
     </html>

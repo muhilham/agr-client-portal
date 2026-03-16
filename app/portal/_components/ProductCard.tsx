@@ -73,9 +73,7 @@ export default function ProductCard({ product, quantity, onQuantityChange }: Pro
               onQuantityChange(product.id, Math.max(0, quantity - 1))
             }
             data-testid={`qty-decrement-${product.id}`}
-            className="w-10 h-10 rounded-lg border border-[rgba(245,235,201,0.25)] text-brand-crema
-              hover:bg-[rgba(245,235,201,0.08)] transition-colors flex items-center justify-center
-              text-lg font-medium min-w-[40px] min-h-[44px]"
+            className="w-10 h-10 rounded-lg border border-[rgba(245,235,201,0.25)] text-brand-crema hover:bg-[rgba(245,235,201,0.08)] transition-colors flex items-center justify-center text-lg font-medium min-w-[40px] min-h-[44px]"
             aria-label="Kurangi"
           >
             −
@@ -89,16 +87,12 @@ export default function ProductCard({ product, quantity, onQuantityChange }: Pro
             onBlur={(e) => handleBlur(e.target.value)}
             placeholder={`Min ${product.minQty}`}
             data-testid={`qty-input-${product.id}`}
-            className="flex-1 h-10 min-h-[44px] rounded-lg border border-[rgba(245,235,201,0.25)] bg-transparent
-              text-brand-crema text-center text-[16px] focus:outline-none focus:border-brand-crema
-              placeholder:text-brand-parchment placeholder:opacity-50"
+            className="flex-1 h-10 min-h-[44px] rounded-lg border border-[rgba(245,235,201,0.25)] bg-transparent text-brand-crema text-center text-[16px] focus:outline-none focus:border-brand-crema placeholder:text-brand-parchment placeholder:opacity-50"
           />
           <button
             onClick={() => onQuantityChange(product.id, quantity + 1)}
             data-testid={`qty-increment-${product.id}`}
-            className="w-10 h-10 rounded-lg border border-[rgba(245,235,201,0.25)] text-brand-crema
-              hover:bg-[rgba(245,235,201,0.08)] transition-colors flex items-center justify-center
-              text-lg font-medium min-w-[40px] min-h-[44px]"
+            className="w-10 h-10 rounded-lg border border-[rgba(245,235,201,0.25)] text-brand-crema hover:bg-[rgba(245,235,201,0.08)] transition-colors flex items-center justify-center text-lg font-medium min-w-[40px] min-h-[44px]"
             aria-label="Tambah"
           >
             +
