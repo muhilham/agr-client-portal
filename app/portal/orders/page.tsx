@@ -1,0 +1,128 @@
+import { createClient } from '@/lib/supabase/server'
+import { redirect } from 'next/navigation'
+import Link from 'next/link'
+import { StatusBadge } from '@/components/StatusBadge'
+
+export default async function OrdersPage() {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user?.email) redirect('/')
+
+  const { data: client } = await supabase
+    .from('clients')
+    .select('id')
+    .eq('email', user.email)
+    .single()
+
+  if (!client) redirect('/auth/unauthorized')
+
+  const { data: orders } = await supabase
+    .from('orders')
+    .select('id, order_number, status, total_amount, created_at')
+    .eq('client_id', client.id)
+    .order('created_at', { ascending: false })
+
+  const fmt = new Intl.DateTimeFormat('id-ID', {
+    timeZone: 'Asia/Jakarta',
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+
+  return (
+    <main className="min-h-screen bg-brand-black">
+      {/* Nav */}
+      <nav className="sticky top-0 z-40 bg-brand-black border-b border-[rgba(245,235,201,0.25)] px-4 py-4">
+        <div className="max-w-2xl mx-auto flex items-center justify-between">
+          <span className="text-brand-crema font-semibold tracking-widest text-sm uppercase">
+            Agroastery
+          </span>
+          <Link
+            href="/portal"
+            className="text-brand-parchment text-sm hover:text-brand-crema transition-colors"
+            data-testid="back-to-catalog-nav"
+          >
+            ← Katalog
+          </Link>
+        </div>
+      </nav>
+
+      <div className="max-w-2xl mx-auto px-4 py-6 flex flex-col gap-6">
+        <h1 className="text-xl font-semibold text-brand-crema">Riwayat Pesanan</h1>
+
+        {!orders || orders.length === 0 ? (
+          <div
+            className="rounded-xl border border-[rgba(245,235,201,0.25)] bg-brand-midnight p-10 flex flex-col items-center gap-4 text-center"
+            data-testid="empty-orders"
+          >
+            <span className="text-4xl opacity-30">📋</span>
+            <p className="text-brand-parchment text-sm">Belum ada pesanan.</p>
+            <Link
+              href="/portal"
+              className="text-brand-crema text-sm underline underline-offset-4 hover:text-brand-honey transition-colors"
+            >
+              Buat pesanan pertama Anda
+            </Link>
+          </div>
+        ) : (
+          <div
+            className="rounded-xl border border-[rgba(245,235,201,0.25)] bg-brand-midnight overflow-hidden"
+            data-testid="orders-list"
+          >
+            <div className="hidden sm:grid grid-cols-[1fr_auto_auto_auto] gap-4 px-5 py-3 border-b border-[rgba(245,235,201,0.15)]">
+              <p className="text-brand-parchment text-xs uppercase tracking-wider">No. Pesanan</p>
+              <p className="text-brand-parchment text-xs uppercase tracking-wider">Tanggal</p>
+              <p className="text-brand-parchment text-xs uppercase tracking-wider text-right">Total</p>
+              <p className="text-brand-parchment text-xs uppercase tracking-wider">Status</p>
+            </div>
+            <div className="divide-y divide-[rgba(245,235,201,0.1)]">
+              {orders.map((order) => (
+                <Link
+                  key={order.id}
+                  href={`/portal/orders/${order.id}`}
+                  className="flex flex-col sm:grid sm:grid-cols-[1fr_auto_auto_auto] gap-2 sm:gap-4 px-5 py-4
+                    hover:bg-[rgba(245,235,201,0.04)] transition-colors cursor-pointer"
+                  data-testid={`order-row-${order.id}`}
+                >
+                  <div className="flex items-center justify-between sm:block">
+                    <p className="text-brand-crema text-sm font-medium">
+                      {order.order_number}
+                    </p>
+                    <StatusBadge status={order.status} />
+                  </div>
+                  <p className="text-brand-parchment text-xs sm:text-sm sm:self-center">
+                    {fmt.format(new Date(order.created_at))}
+                  </p>
+                  <p className="text-brand-crema text-sm font-semibold sm:self-center sm:text-right">
+                    {formatIDR(order.total_amount)}
+                  </p>
+                  <div className="hidden sm:flex sm:self-center">
+                    <StatusBadge status={order.status} />
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <Link
+          href="/portal"
+          data-testid="new-order-link"
+          className="w-full py-3.5 rounded-lg bg-brand-crema text-brand-black font-semibold text-base
+            hover:bg-brand-honey transition-colors text-center min-h-[44px] flex items-center justify-center"
+        >
+          Buat Pesanan Baru
+        </Link>
+      </div>
+    </main>
+  )
+}
+
+function formatIDR(amount: number) {
+  return `Rp ${Number(amount).toLocaleString('id-ID')}`
+}
