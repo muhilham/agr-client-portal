@@ -51,13 +51,19 @@ export async function sendOrderNotification(payload: OrderNotificationPayload): 
 
   const botToken = process.env.TELEGRAM_BOT_TOKEN
   const groupId = process.env.TELEGRAM_ORDER_GROUP_ID
+  const supabase = await createClient()
 
   if (!botToken || !groupId) {
     console.warn('[Telegram] Missing TELEGRAM_BOT_TOKEN or TELEGRAM_ORDER_GROUP_ID')
+    await supabase.from('notification_logs').insert({
+      order_id: orderId,
+      order_number: orderNumber,
+      channel: 'telegram',
+      status: 'failed',
+      error: 'Missing TELEGRAM_BOT_TOKEN or TELEGRAM_ORDER_GROUP_ID',
+    })
     return
   }
-
-  const supabase = await createClient()
   let status: 'sent' | 'failed' = 'sent'
   let error: string | null = null
 

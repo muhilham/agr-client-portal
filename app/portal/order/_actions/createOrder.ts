@@ -20,6 +20,10 @@ type CreatedOrder = {
 }
 
 export async function createOrder(payload: CreateOrderPayload): Promise<CreatedOrder> {
+  if (!payload.items || payload.items.length === 0) {
+    throw new Error('Order must contain at least one item')
+  }
+
   const supabase = await createClient()
 
   const {
@@ -73,7 +77,7 @@ export async function createOrder(payload: CreateOrderPayload): Promise<CreatedO
       order_number: orderNumber,
       client_id: client.id,
       status: 'PENDING',
-      notes: payload.notes ?? null,
+      notes: payload.notes?.slice(0, 200) ?? null,
       total_amount: totalAmount,
     })
     .select('id, order_number')
