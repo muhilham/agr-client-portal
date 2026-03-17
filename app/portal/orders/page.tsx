@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { StatusBadge } from '@/components/StatusBadge'
+import LogoutButton from '@/app/portal/_components/LogoutButton'
 
 export default async function OrdersPage() {
   const supabase = await createClient()
@@ -42,13 +43,16 @@ export default async function OrdersPage() {
           <span className="text-brand-crema font-semibold tracking-widest text-sm uppercase">
             Agroastery
           </span>
-          <Link
-            href="/portal"
-            className="text-brand-parchment text-sm hover:text-brand-crema transition-colors"
-            data-testid="back-to-catalog-nav"
-          >
-            ← Katalog
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link
+              href="/portal"
+              className="text-brand-parchment text-sm hover:text-brand-crema transition-colors"
+              data-testid="back-to-catalog-nav"
+            >
+              ← Katalog
+            </Link>
+            <LogoutButton />
+          </div>
         </div>
       </nav>
 

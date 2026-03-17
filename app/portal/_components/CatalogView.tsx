@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { CatalogProduct } from '@/lib/catalog'
 import ProductCard from './ProductCard'
 import StickyCart from './StickyCart'
+import LogoutButton from './LogoutButton'
 
 export type CartItem = {
   productId: string
@@ -68,13 +69,16 @@ export default function CatalogView({ client, catalog }: Props) {
             <span className="text-brand-crema font-semibold tracking-widest text-sm uppercase">
               Agroastery
             </span>
-            <Link
-              href="/portal/orders"
-              className="text-brand-parchment text-sm hover:text-brand-crema transition-colors"
-              data-testid="orders-nav-link"
-            >
-              Riwayat Pesanan
-            </Link>
+            <div className="flex items-center gap-4">
+              <Link
+                href="/portal/orders"
+                className="text-brand-parchment text-sm hover:text-brand-crema transition-colors"
+                data-testid="orders-nav-link"
+              >
+                Riwayat Pesanan
+              </Link>
+              <LogoutButton />
+            </div>
           </div>
         </nav>
 
