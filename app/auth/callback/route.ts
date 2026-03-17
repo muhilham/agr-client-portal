@@ -2,8 +2,9 @@ import { createClient } from '@/lib/supabase/server'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(request: NextRequest) {
-  const { searchParams, origin } = new URL(request.url)
+  const { searchParams } = new URL(request.url)
   const code = searchParams.get('code')
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://order.agroastery.com'
 
   const supabase = await createClient()
   if (code) await supabase.auth.exchangeCodeForSession(code)
@@ -13,7 +14,7 @@ export async function GET(request: NextRequest) {
   } = await supabase.auth.getUser()
 
   if (!user?.email) {
-    return NextResponse.redirect(new URL('/auth/unauthorized', origin))
+    return NextResponse.redirect(new URL('/auth/unauthorized', siteUrl))
   }
 
   const { data: client } = await supabase
@@ -23,8 +24,8 @@ export async function GET(request: NextRequest) {
     .single()
 
   if (!client || !client.is_active) {
-    return NextResponse.redirect(new URL('/auth/unauthorized', origin))
+    return NextResponse.redirect(new URL('/auth/unauthorized', siteUrl))
   }
 
-  return NextResponse.redirect(new URL('/portal', origin))
+  return NextResponse.redirect(new URL('/portal', siteUrl))
 }
