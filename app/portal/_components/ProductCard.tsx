@@ -1,6 +1,5 @@
 'use client'
 
-import Image from 'next/image'
 import { CatalogProduct } from '@/lib/catalog'
 
 type Props = {
@@ -34,12 +33,10 @@ export default function ProductCard({ product, quantity, onQuantityChange }: Pro
       {/* Image */}
       <div className="relative w-full aspect-square bg-brand-black">
         {product.imageUrl ? (
-          <Image
+          <img
             src={product.imageUrl}
             alt={product.name}
-            fill
-            sizes="(max-width: 768px) 100vw, 50vw"
-            className="object-cover"
+            className="object-cover w-full h-full"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
