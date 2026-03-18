@@ -30,23 +30,27 @@ function formatWIB(date: Date): string {
   }).format(date)
 }
 
+function escapeHtml(text: string): string {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
 export async function sendOrderNotification(payload: OrderNotificationPayload): Promise<void> {
   const { orderId, orderNumber, clientName, items, totalAmount, createdAt } = payload
 
   const itemLines = items
-    .map((i) => `  • ${i.name} × ${i.quantity} @ ${formatIDR(i.unitPrice)}`)
+    .map((i) => `  • ${escapeHtml(i.name)} × ${i.quantity} @ ${formatIDR(i.unitPrice)}`)
     .join('\n')
 
   const message = [
-    `🛒 *Pesanan Baru — ${orderNumber}*`,
+    `🛒 <b>Pesanan Baru — ${escapeHtml(orderNumber)}</b>`,
     ``,
-    `👤 *Klien:* ${clientName}`,
-    `📅 *Waktu:* ${formatWIB(createdAt)} WIB`,
+    `👤 <b>Klien:</b> ${escapeHtml(clientName)}`,
+    `📅 <b>Waktu:</b> ${formatWIB(createdAt)} WIB`,
     ``,
-    `*Item:*`,
+    `<b>Item:</b>`,
     itemLines,
     ``,
-    `💰 *Total: ${formatIDR(totalAmount)}*`,
+    `💰 <b>Total: ${formatIDR(totalAmount)}</b>`,
   ].join('\n')
 
   const botToken = process.env.TELEGRAM_BOT_TOKEN
@@ -76,7 +80,7 @@ export async function sendOrderNotification(payload: OrderNotificationPayload): 
         body: JSON.stringify({
           chat_id: groupId,
           text: message,
-          parse_mode: 'Markdown',
+          parse_mode: 'HTML',
         }),
       }
     )
