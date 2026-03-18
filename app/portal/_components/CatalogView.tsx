@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { CatalogProduct } from '@/lib/catalog'
 import ProductCard from './ProductCard'
 import StickyCart from './StickyCart'
@@ -66,9 +67,12 @@ export default function CatalogView({ client, catalog }: Props) {
         {/* Nav */}
         <nav className="sticky top-0 z-40 bg-brand-black border-b border-[rgba(245,235,201,0.25)] px-4 py-4">
           <div className="max-w-2xl mx-auto flex items-center justify-between">
-            <span className="text-brand-crema font-semibold tracking-widest text-sm uppercase">
-              Agroastery
-            </span>
+            <Image
+              src="/agroastery-logo.svg"
+              alt="Agroastery"
+              width={120}
+              height={19}
+            />
             <div className="flex items-center gap-4">
               <Link
                 href="/portal/orders"

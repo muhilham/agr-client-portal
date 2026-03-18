@@ -1,17 +1,16 @@
 import Link from 'next/link'
+import Image from 'next/image'
 
 export default function UnauthorizedPage() {
   return (
     <main className="min-h-screen bg-brand-black flex flex-col items-center justify-center px-4">
       <div className="w-full max-w-sm flex flex-col items-center gap-8 text-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-16 h-16 rounded-full border border-[rgba(245,235,201,0.25)] flex items-center justify-center">
-            <span className="text-2xl font-bold text-brand-crema">A</span>
-          </div>
-          <h1 className="text-2xl font-semibold tracking-widest text-brand-crema uppercase">
-            Agroastery
-          </h1>
-        </div>
+        <Image
+          src="/agroastery-logo.svg"
+          alt="Agroastery"
+          width={180}
+          height={28}
+        />
 
         <div className="w-full rounded-xl border border-[rgba(245,235,201,0.25)] bg-brand-midnight p-8 flex flex-col gap-5">
           <div className="text-4xl">🔒</div>
