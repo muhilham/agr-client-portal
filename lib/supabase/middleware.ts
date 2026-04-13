@@ -27,12 +27,20 @@ export async function updateSession(request: NextRequest): Promise<import('next/
 
   const {
     data: { user },
+    error,
   } = await supabase.auth.getUser()
 
   const isPortalRoute = request.nextUrl.pathname.startsWith('/portal')
 
-  if (isPortalRoute && !user) {
-    return NextResponse.redirect(new URL('/', request.url))
+  if (error?.code === 'refresh_token_not_found' || (isPortalRoute && !user)) {
+    const redirectResponse = NextResponse.redirect(new URL('/', request.url))
+    // Clear stale auth cookies so the client starts fresh
+    request.cookies.getAll().forEach(({ name }) => {
+      if (name.startsWith('sb-')) {
+        redirectResponse.cookies.delete(name)
+      }
+    })
+    return redirectResponse
   }
 
   return supabaseResponse
