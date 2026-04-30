@@ -1,7 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
-import { StatusBadge } from '@/components/StatusBadge'
+import { FulfillmentBadge } from '@/components/FulfillmentBadge'
+import { PaymentBadge } from '@/components/PaymentBadge'
 
 type Props = {
   params: Promise<{ id: string }>
@@ -20,7 +21,7 @@ export default async function OrderDetailPage({ params }: Props) {
   const { data: order } = await supabase
     .from('orders')
     .select(`
-      id, order_number, status, total_amount, notes, created_at, updated_at,
+      id, order_number, fulfillment_status, payment_status, total_amount, notes, created_at, updated_at,
       order_items (id, product_name, unit_price, quantity, subtotal)
     `)
     .eq('id', id)
@@ -67,7 +68,10 @@ export default async function OrderDetailPage({ params }: Props) {
               {fmt.format(new Date(order.created_at))} WIB
             </p>
           </div>
-          <StatusBadge status={order.status} />
+          <div className="flex gap-1.5">
+            <FulfillmentBadge status={order.fulfillment_status} />
+            <PaymentBadge status={order.payment_status} />
+          </div>
         </div>
 
         {/* Items */}
