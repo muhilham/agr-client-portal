@@ -42,3 +42,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# supabase
+# CRITICAL: Never add config.toml to this repo. Migrations must run from agr-ops only.
+/supabase/config.toml
+/supabase/.temp/
+
+# opencode
+# Personal AI assistant configuration
+opencode.json
