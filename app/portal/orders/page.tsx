@@ -1,7 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
-import { StatusBadge } from '@/components/StatusBadge'
+import { FulfillmentBadge } from '@/components/FulfillmentBadge'
+import { PaymentBadge } from '@/components/PaymentBadge'
 import LogoutButton from '@/app/portal/_components/LogoutButton'
 
 export default async function OrdersPage() {
@@ -22,7 +23,7 @@ export default async function OrdersPage() {
 
   const { data: orders } = await supabase
     .from('orders')
-    .select('id, order_number, status, total_amount, created_at')
+    .select('id, order_number, fulfillment_status, payment_status, total_amount, created_at')
     .eq('client_id', client.id)
     .order('created_at', { ascending: false })
 
@@ -97,7 +98,10 @@ export default async function OrdersPage() {
                     <p className="text-brand-crema text-sm font-medium">
                       {order.order_number}
                     </p>
-                    <StatusBadge status={order.status} />
+                    <div className="flex gap-1.5">
+                      <FulfillmentBadge status={order.fulfillment_status} />
+                      <PaymentBadge status={order.payment_status} />
+                    </div>
                   </div>
                   <p className="text-brand-parchment text-xs sm:text-sm sm:self-center">
                     {fmt.format(new Date(order.created_at))}
@@ -106,7 +110,10 @@ export default async function OrdersPage() {
                     {formatIDR(order.total_amount)}
                   </p>
                   <div className="hidden sm:flex sm:self-center">
-                    <StatusBadge status={order.status} />
+                    <div className="flex gap-1.5">
+                      <FulfillmentBadge status={order.fulfillment_status} />
+                      <PaymentBadge status={order.payment_status} />
+                    </div>
                   </div>
                 </Link>
               ))}
