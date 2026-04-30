@@ -10,7 +10,7 @@
  *   □ Confirm Order → order saved, redirects to confirmation
  *   □ Confirmation page shows order number
  *   □ View Order History → order appears in list
- *   □ Click order row → detail page shows items and status badge
+ *   □ Click order row → detail page shows items, fulfillment badge, and payment badge
  *
  * Cleanup: deletes the test order after all tests complete.
  */
@@ -288,9 +288,11 @@ test.describe('Order detail (CP-05b)', () => {
     // Order number in header
     await expect(page.getByTestId('order-number')).toContainText(createdOrderNumber!)
 
-    // Status badge visible
-    await expect(page.getByTestId('status-badge')).toBeVisible()
-    await expect(page.getByTestId('status-badge')).toContainText('Menunggu')
+    // Status badges visible
+    await expect(page.getByTestId('fulfillment-badge')).toBeVisible()
+    await expect(page.getByTestId('fulfillment-badge')).toContainText('PENDING')
+    await expect(page.getByTestId('payment-badge')).toBeVisible()
+    await expect(page.getByTestId('payment-badge')).toContainText('UNPAID')
 
     // At least one item row
     const itemRow = page.locator('[data-testid^="order-item-"]').first()
