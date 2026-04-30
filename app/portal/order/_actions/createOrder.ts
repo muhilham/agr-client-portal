@@ -76,7 +76,8 @@ export async function createOrder(payload: CreateOrderPayload): Promise<CreatedO
     .insert({
       order_number: orderNumber,
       client_id: client.id,
-      status: 'PENDING',
+      fulfillment_status: 'PENDING',
+      payment_status: 'UNPAID',
       notes: payload.notes?.slice(0, 200) ?? null,
       total_amount: totalAmount,
     })
