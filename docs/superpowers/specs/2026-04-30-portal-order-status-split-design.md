@@ -42,7 +42,7 @@ The portal does not gain any UI to advance fulfillment or mark payment. That sta
 
 Props: `{ status: string }`.
 
-Style map covers `PENDING`, `CONFIRMED`, `SHIPPED`, `DELIVERED`, `CANCELLED`. Label map (Indonesian): `Menunggu`, `Dikonfirmasi`, `Dikirim`, `Terkirim`, `Dibatalkan`. Unknown values fall back to the default zinc style with the raw uppercase value as the label.
+Style map covers `PENDING`, `CONFIRMED`, `SHIPPED`, `DELIVERED`, `CANCELLED`. The label is the raw status string in English uppercase — no translation map. Unknown values fall back to the default zinc style and render the raw uppercase value.
 
 `data-testid="fulfillment-badge"`.
 
@@ -50,7 +50,7 @@ Style map covers `PENDING`, `CONFIRMED`, `SHIPPED`, `DELIVERED`, `CANCELLED`. La
 
 Props: `{ status: string }`.
 
-Style map covers `UNPAID` (zinc) and `PAID` (emerald). Label map: `Belum Dibayar`, `Lunas`. Same fallback behaviour as `FulfillmentBadge`.
+Style map covers `UNPAID` (zinc) and `PAID` (emerald). The label is the raw status string. Same fallback behaviour as `FulfillmentBadge`.
 
 `data-testid="payment-badge"`.
 
@@ -100,7 +100,7 @@ The DB columns both have defaults (`'PENDING'` and `'UNPAID'`), so the explicit 
 
 ### Update
 
-- `e2e/tests/portal.spec.ts` — lines 292–293 currently assert on a single `status-badge` test id. Replace with four assertions: `fulfillment-badge` is visible and contains `Menunggu`; `payment-badge` is visible and contains `Belum Dibayar`.
+- `e2e/tests/portal.spec.ts` — lines 292–293 currently assert on a single `status-badge` test id and the Indonesian label `Menunggu`. Replace with four assertions: `fulfillment-badge` is visible and contains `PENDING`; `payment-badge` is visible and contains `UNPAID`.
 - The doc comment near line 13 mentions "status badge" — change to "fulfillment + payment badges".
 
 ### Add
