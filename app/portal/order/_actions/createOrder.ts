@@ -1,27 +1,19 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { getCatalogForClient } from '@/lib/catalog'
+import { getSupabaseAdmin } from '@/lib/supabase/admin'
+import { createOrderInputSchema } from '@/lib/schemas/order'
+import { loadShippingContext, findRateMatch } from '@/lib/shipping'
 import { sendOrderNotification } from '@/lib/telegram'
 
-type OrderItem = {
-  productId: string
-  quantity: number
-}
+export type CreateOrderResult =
+  | { ok: true; id: string; order_number: string }
+  | { ok: false; error: string }
 
-type CreateOrderPayload = {
-  items: OrderItem[]
-  notes?: string
-}
-
-type CreatedOrder = {
-  id: string
-  order_number: string
-}
-
-export async function createOrder(payload: CreateOrderPayload): Promise<CreatedOrder> {
-  if (!payload.items || payload.items.length === 0) {
-    throw new Error('Order must contain at least one item')
+export async function createOrder(input: unknown): Promise<CreateOrderResult> {
+  const parsed = createOrderInputSchema.safeParse(input)
+  if (!parsed.success) {
+    return { ok: false, error: 'Permintaan tidak valid' }
   }
 
   const supabase = await createClient()
@@ -30,47 +22,55 @@ export async function createOrder(payload: CreateOrderPayload): Promise<CreatedO
     data: { user },
   } = await supabase.auth.getUser()
 
-  if (!user?.email) throw new Error('Unauthenticated')
+  if (!user?.email) {
+    throw new Error('Unauthenticated')
+  }
 
-  const { data: client, error: clientErr } = await supabase
+  const admin = getSupabaseAdmin()
+  const { data: client } = await admin
     .from('clients')
     .select('id, name')
     .eq('email', user.email)
     .single()
 
-  if (clientErr || !client) throw new Error('Client not found')
+  if (!client) {
+    throw new Error('Client not found')
+  }
 
-  // Re-validate prices server-side — never trust client
-  const catalog = await getCatalogForClient(client.id)
-  const catalogMap = new Map(catalog.map((p) => [p.id, p]))
+  const ctx = await loadShippingContext(client.id, parsed.data.items)
 
-  const validatedItems = payload.items.map((item) => {
-    const product = catalogMap.get(item.productId)
-    if (!product) throw new Error(`Produk tidak ditemukan: ${item.productId}`)
-    if (item.quantity < product.minQty) {
-      throw new Error(`Jumlah minimum untuk ${product.name} adalah ${product.minQty}`)
+  if (!ctx.ok) {
+    const messages: Record<string, string> = {
+      NO_ADDRESS: 'Alamat pengiriman tidak ditemukan',
+      INVALID_CART: 'Isi keranjang tidak valid, silakan kembali ke katalog',
+      ORIGIN_NOT_CONFIGURED: 'Pengiriman tidak tersedia, hubungi admin',
+      RATES_UNAVAILABLE: 'Pengiriman tidak dapat dihitung',
     }
-    return {
-      productId: product.id,
-      productName: product.name,
-      unit: product.unit,
-      unitPrice: product.effectivePrice,
-      quantity: item.quantity,
-      subtotal: product.effectivePrice * item.quantity,
-    }
-  })
+    return { ok: false, error: messages[ctx.error] ?? 'Terjadi kesalahan' }
+  }
 
-  const totalAmount = validatedItems.reduce((sum, i) => sum + i.subtotal, 0)
+  const match = findRateMatch(
+    ctx.rates,
+    parsed.data.shippingSelection.courier_code,
+    parsed.data.shippingSelection.service_code
+  )
 
-  // Generate order number via DB function
+  if (!match) {
+    return { ok: false, error: 'Kurir tidak lagi tersedia, silakan pilih ulang' }
+  }
+
+  const totalAmount = ctx.validatedItems.reduce((sum, i) => sum + i.subtotal, 0)
+
   const { data: orderNumberData, error: orderNumberErr } = await supabase.rpc(
     'generate_order_number'
   )
   if (orderNumberErr) throw orderNumberErr
 
-  const orderNumber = orderNumberData as string
+  if (typeof orderNumberData !== 'string') {
+    throw new Error('generate_order_number returned non-string')
+  }
+  const orderNumber = orderNumberData
 
-  // Insert order
   const { data: order, error: orderErr } = await supabase
     .from('orders')
     .insert({
@@ -78,17 +78,20 @@ export async function createOrder(payload: CreateOrderPayload): Promise<CreatedO
       client_id: client.id,
       fulfillment_status: 'PENDING',
       payment_status: 'UNPAID',
-      notes: payload.notes?.slice(0, 200) ?? null,
+      notes: parsed.data.notes?.slice(0, 500) ?? null,
       total_amount: totalAmount,
+      shipping_cost: match.price,
+      shipping_courier: match.courier_code,
+      shipping_service: match.courier_service_code,
+      shipping_etd: match.duration,
     })
     .select('id, order_number')
     .single()
 
   if (orderErr || !order) throw orderErr ?? new Error('Failed to create order')
 
-  // Insert order items
   const { error: itemsErr } = await supabase.from('order_items').insert(
-    validatedItems.map((i) => ({
+    ctx.validatedItems.map((i) => ({
       order_id: order.id,
       product_id: i.productId,
       product_name: i.productName,
@@ -100,23 +103,25 @@ export async function createOrder(payload: CreateOrderPayload): Promise<CreatedO
 
   if (itemsErr) throw itemsErr
 
-  // Send Telegram notification (non-blocking)
   try {
     await sendOrderNotification({
       orderId: order.id,
       orderNumber: order.order_number,
       clientName: client.name,
-      items: validatedItems.map((i) => ({
+      items: ctx.validatedItems.map((i) => ({
         name: i.productName,
         quantity: i.quantity,
         unitPrice: i.unitPrice,
       })),
       totalAmount,
+      shippingCost: match.price,
+      shippingCourier: match.courier_name,
+      shippingService: match.courier_service_name,
       createdAt: new Date(),
     })
   } catch (err) {
     console.error('[Telegram] Notification failed:', err)
   }
 
-  return order
+  return { ok: true, id: order.id, order_number: order.order_number }
 }
