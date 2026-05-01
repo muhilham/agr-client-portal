@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { getSupabaseAdmin } from '@/lib/supabase/admin'
 
 export type CatalogProduct = {
   id: string
@@ -10,35 +10,52 @@ export type CatalogProduct = {
   effectivePrice: number
   minQty: number
   isGlobal: boolean
+  shipWeightGrams: number
+}
+
+type ProductRow = {
+  id: string
+  name: string
+  description: string | null
+  unit: string
+  sku: string | null
+  base_price: number
+  image_url: string | null
+  is_global: boolean
+  is_active: boolean
+  ship_weight_grams: number
+}
+
+type ClientProductRow = {
+  custom_price: number | null
+  min_qty: number | null
+  products: ProductRow | null
 }
 
 export async function getCatalogForClient(clientId: string): Promise<CatalogProduct[]> {
-  const supabase = await createClient()
+  const supabase = getSupabaseAdmin()
 
-  // Fetch global products
   const { data: globalProducts, error: globalErr } = await supabase
     .from('products')
-    .select('id, name, description, unit, sku, base_price, image_url, is_global')
+    .select('id, name, description, unit, sku, base_price, image_url, is_global, is_active, ship_weight_grams')
     .eq('is_active', true)
     .eq('is_global', true)
+    .returns<ProductRow[]>()
 
   if (globalErr) throw globalErr
 
-  // Fetch client-specific assigned products (non-global with overrides)
   const { data: clientProducts, error: clientErr } = await supabase
     .from('client_products')
-    .select(`
-      custom_price,
-      min_qty,
-      products (id, name, description, unit, sku, base_price, image_url, is_global, is_active)
-    `)
+    .select(
+      'custom_price, min_qty, products (id, name, description, unit, sku, base_price, image_url, is_global, is_active, ship_weight_grams)'
+    )
     .eq('client_id', clientId)
+    .returns<ClientProductRow[]>()
 
   if (clientErr) throw clientErr
 
   const catalog = new Map<string, CatalogProduct>()
 
-  // Add global products first
   for (const p of globalProducts ?? []) {
     catalog.set(p.id, {
       id: p.id,
@@ -50,22 +67,12 @@ export async function getCatalogForClient(clientId: string): Promise<CatalogProd
       effectivePrice: Number(p.base_price),
       minQty: 1,
       isGlobal: true,
+      shipWeightGrams: Number(p.ship_weight_grams),
     })
   }
 
-  // Merge client-specific overrides (may override global or add non-global)
   for (const cp of clientProducts ?? []) {
-    const p = cp.products as unknown as {
-      id: string
-      name: string
-      description: string | null
-      unit: string
-      sku: string | null
-      base_price: number
-      image_url: string | null
-      is_global: boolean
-      is_active: boolean
-    } | null
+    const p = cp.products
     if (!p || !p.is_active) continue
 
     catalog.set(p.id, {
@@ -78,6 +85,7 @@ export async function getCatalogForClient(clientId: string): Promise<CatalogProd
       effectivePrice: cp.custom_price != null ? Number(cp.custom_price) : Number(p.base_price),
       minQty: cp.min_qty ?? 1,
       isGlobal: p.is_global,
+      shipWeightGrams: Number(p.ship_weight_grams),
     })
   }
 
