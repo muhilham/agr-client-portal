@@ -61,47 +61,59 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
 
   const totalAmount = ctx.validatedItems.reduce((sum, i) => sum + i.subtotal, 0)
 
-  const { data: orderNumberData, error: orderNumberErr } = await supabase.rpc(
-    'generate_order_number'
-  )
-  if (orderNumberErr) throw orderNumberErr
-
-  if (typeof orderNumberData !== 'string') {
-    throw new Error('generate_order_number returned non-string')
+  let orderNumber: string
+  try {
+    const { data, error } = await supabase.rpc('generate_order_number')
+    if (error) throw error
+    if (typeof data !== 'string') throw new Error('generate_order_number returned non-string')
+    orderNumber = data
+  } catch (err) {
+    console.error('[createOrder] Failed to generate order number:', err)
+    return { ok: false, error: 'Terjadi kesalahan, silakan coba lagi' }
   }
-  const orderNumber = orderNumberData
 
-  const { data: order, error: orderErr } = await supabase
-    .from('orders')
-    .insert({
-      order_number: orderNumber,
-      client_id: client.id,
-      fulfillment_status: 'PENDING',
-      payment_status: 'UNPAID',
-      notes: parsed.data.notes?.slice(0, 500) ?? null,
-      total_amount: totalAmount,
-      shipping_cost: match.price,
-      shipping_courier: match.courier_code,
-      shipping_service: match.courier_service_code,
-      shipping_etd: match.duration,
-    })
-    .select('id, order_number')
-    .single()
+  let order: { id: string; order_number: string }
+  try {
+    const { data, error } = await supabase
+      .from('orders')
+      .insert({
+        order_number: orderNumber,
+        client_id: client.id,
+        fulfillment_status: 'PENDING',
+        payment_status: 'UNPAID',
+        notes: parsed.data.notes?.slice(0, 500) ?? null,
+        total_amount: totalAmount,
+        shipping_cost: match.price,
+        shipping_courier: match.courier_code,
+        shipping_service: match.courier_service_code,
+        shipping_etd: match.duration,
+      })
+      .select('id, order_number')
+      .single()
 
-  if (orderErr || !order) throw orderErr ?? new Error('Failed to create order')
+    if (error || !data) throw error ?? new Error('Failed to create order')
+    order = data
+  } catch (err) {
+    console.error('[createOrder] Failed to insert order:', err)
+    return { ok: false, error: 'Terjadi kesalahan, silakan coba lagi' }
+  }
 
-  const { error: itemsErr } = await supabase.from('order_items').insert(
-    ctx.validatedItems.map((i) => ({
-      order_id: order.id,
-      product_id: i.productId,
-      product_name: i.productName,
-      unit_price: i.unitPrice,
-      quantity: i.quantity,
-      subtotal: i.subtotal,
-    }))
-  )
-
-  if (itemsErr) throw itemsErr
+  try {
+    const { error } = await supabase.from('order_items').insert(
+      ctx.validatedItems.map((i) => ({
+        order_id: order.id,
+        product_id: i.productId,
+        product_name: i.productName,
+        unit_price: i.unitPrice,
+        quantity: i.quantity,
+        subtotal: i.subtotal,
+      }))
+    )
+    if (error) throw error
+  } catch (err) {
+    console.error('[createOrder] Failed to insert order items:', err)
+    return { ok: false, error: 'Terjadi kesalahan, silakan coba lagi' }
+  }
 
   try {
     await sendOrderNotification({

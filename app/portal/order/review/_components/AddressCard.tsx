@@ -1,6 +1,6 @@
 'use client'
 
-import { AddressDisplay } from '@/lib/shipping'
+import type { AddressDisplay } from '@/lib/shipping'
 
 interface AddressCardProps {
   address: AddressDisplay

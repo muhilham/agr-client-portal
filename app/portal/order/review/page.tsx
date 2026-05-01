@@ -8,7 +8,7 @@ import { getShippingRates } from '../_actions/getShippingRates'
 import { CartItem } from '../../_components/CatalogView'
 import AddressCard, { AddressCardEmpty } from './_components/AddressCard'
 import CourierPicker from './_components/CourierPicker'
-import { RateOption, AddressDisplay } from '@/lib/shipping'
+import type { RateOption, AddressDisplay } from '@/lib/shipping'
 
 type RatesState =
   | { kind: 'loading' }

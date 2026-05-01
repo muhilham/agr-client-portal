@@ -1,6 +1,6 @@
 'use client'
 
-import { RateOption } from '@/lib/shipping'
+import type { RateOption } from '@/lib/shipping'
 
 interface CourierPickerProps {
   rates: RateOption[]

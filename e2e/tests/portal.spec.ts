@@ -19,6 +19,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { createClient } from '@supabase/supabase-js'
 import * as fs from 'fs'
 import * as path from 'path'
+import { mockBiteshipLocation, mockBiteshipRates } from '../helpers/biteship'
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -184,6 +185,11 @@ test.describe('Order review → submission (CP-03 → CP-04)', () => {
   })
 
   test('submitting order redirects to confirmation with order number', async ({ page }) => {
+    await mockBiteshipLocation(page)
+    await mockBiteshipRates(page, [
+      { courier_code: 'jne', courier_name: 'JNE', courier_service_code: 'REG', courier_service_name: 'Reguler', duration: '2-3 hari', price: 12000 },
+    ])
+
     await page.goto('/portal')
 
     const productId = await getFirstProductId(page)
@@ -192,6 +198,11 @@ test.describe('Order review → submission (CP-03 → CP-04)', () => {
 
     // Add optional notes
     await page.getByTestId('notes-input').fill('Catatan E2E test')
+
+    // Select courier
+    const courierOption = page.getByTestId('courier-option-jne')
+    await expect(courierOption).toBeVisible()
+    await courierOption.click()
 
     // Submit
     await page.getByTestId('confirm-order-button').click()
