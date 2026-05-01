@@ -1,10 +1,24 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createOrder } from '../_actions/createOrder'
+import { getShippingRates } from '../_actions/getShippingRates'
 import { CartItem } from '../../_components/CatalogView'
+import AddressCard, { AddressCardEmpty } from './_components/AddressCard'
+import CourierPicker from './_components/CourierPicker'
+import { RateOption, AddressDisplay } from '@/lib/shipping'
+
+type RatesState =
+  | { kind: 'loading' }
+  | { kind: 'ready'; rates: RateOption[]; address: AddressDisplay }
+  | { kind: 'no_address' }
+  | { kind: 'error'; message: string }
+
+function formatIDR(amount: number) {
+  return `Rp ${amount.toLocaleString('id-ID')}`
+}
 
 export default function OrderReviewPage() {
   const router = useRouter()
@@ -13,6 +27,31 @@ export default function OrderReviewPage() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loaded, setLoaded] = useState(false)
+  const [ratesState, setRatesState] = useState<RatesState>({ kind: 'loading' })
+  const [selectedRate, setSelectedRate] = useState<RateOption | null>(null)
+
+  const loadRates = useCallback(async (items: CartItem[]) => {
+    setRatesState({ kind: 'loading' })
+    setSelectedRate(null)
+    const result = await getShippingRates({
+      items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+    })
+    if (!result.ok) {
+      if (result.error === 'NO_ADDRESS') {
+        setRatesState({ kind: 'no_address' })
+      } else {
+        const messages: Record<string, string> = {
+          INVALID_CART: 'Isi keranjang tidak valid, silakan kembali ke katalog',
+          ORIGIN_NOT_CONFIGURED: 'Pengiriman tidak tersedia, hubungi admin',
+          RATES_UNAVAILABLE: 'Tidak dapat menghitung ongkir saat ini',
+          INVALID_INPUT: 'Permintaan tidak valid',
+        }
+        setRatesState({ kind: 'error', message: messages[result.error] ?? 'Terjadi kesalahan' })
+      }
+      return
+    }
+    setRatesState({ kind: 'ready', rates: result.rates, address: result.address })
+  }, [])
 
   useEffect(() => {
     const stored = sessionStorage.getItem('cart')
@@ -21,31 +60,52 @@ export default function OrderReviewPage() {
       return
     }
     try {
-      setCart(JSON.parse(stored))
+      const parsed = JSON.parse(stored)
+      setCart(parsed)
+      loadRates(parsed)
     } catch {
       router.replace('/portal')
       return
     }
     setLoaded(true)
-  }, [router])
+  }, [router, loadRates])
 
-  const total = cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0)
+  const subtotal = cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0)
+  const shippingCost = selectedRate?.price ?? 0
+  const grandTotal = subtotal + shippingCost
 
   const handleConfirm = async () => {
+    if (!selectedRate || ratesState.kind !== 'ready') return
+
     setSubmitting(true)
     setError(null)
-    try {
-      const order = await createOrder({
-        items: cart.map((i) => ({ productId: i.productId, quantity: i.quantity })),
-        notes: notes.trim() || undefined,
-      })
-      sessionStorage.removeItem('cart')
-      router.push(`/portal/order/confirmation?id=${order.id}&orderNumber=${encodeURIComponent(order.order_number)}`)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Terjadi kesalahan. Coba lagi.')
+
+    const result = await createOrder({
+      items: cart.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+      notes: notes.trim() || undefined,
+      shippingSelection: {
+        courier_code: selectedRate.courier_code,
+        service_code: selectedRate.service_code,
+      },
+    })
+
+    if (!result.ok) {
+      if (result.error === 'Kurir tidak lagi tersedia, silakan pilih ulang') {
+        setRatesState({ kind: 'loading' })
+        loadRates(cart)
+      }
+      setError(result.error)
       setSubmitting(false)
+      return
     }
+
+    sessionStorage.removeItem('cart')
+    router.push(
+      `/portal/order/confirmation?id=${result.id}&orderNumber=${encodeURIComponent(result.order_number)}`
+    )
   }
+
+  const canSubmit = ratesState.kind === 'ready' && selectedRate != null
 
   if (!loaded) {
     return (
@@ -101,19 +161,67 @@ export default function OrderReviewPage() {
             ))}
           </div>
           <div className="px-5 py-4 border-t border-[rgba(245,235,201,0.25)] flex items-center justify-between">
-            <p className="text-brand-parchment text-sm font-medium">Total</p>
-            <p className="text-brand-crema text-lg font-semibold" data-testid="order-total">
-              {formatIDR(total)}
+            <p className="text-brand-parchment text-sm font-medium">Subtotal</p>
+            <p className="text-brand-crema text-sm font-semibold" data-testid="shipping-subtotal">
+              {formatIDR(subtotal)}
             </p>
           </div>
         </div>
 
+        {/* Shipping */}
+        <div data-testid="shipping-section" className="flex flex-col gap-3">
+          <p className="text-brand-parchment text-xs uppercase tracking-wider">Pengiriman</p>
+
+          {ratesState.kind === 'loading' && (
+            <div className="rounded-xl border border-[rgba(245,235,201,0.25)] bg-brand-midnight px-5 py-6">
+              <div className="text-brand-parchment text-sm">Menghitung ongkir…</div>
+            </div>
+          )}
+
+          {ratesState.kind === 'no_address' && <AddressCardEmpty />}
+
+          {ratesState.kind === 'error' && (
+            <div className="rounded-xl border border-[rgba(245,235,201,0.25)] bg-brand-midnight px-5 py-4 flex flex-col gap-3">
+              <p className="text-brand-parchment text-sm">{ratesState.message}</p>
+              <button
+                onClick={() => loadRates(cart)}
+                data-testid="retry-rates-button"
+                className="text-brand-crema text-sm underline underline-offset-4 hover:text-brand-honey transition-colors self-start"
+              >
+                Coba lagi
+              </button>
+            </div>
+          )}
+
+          {ratesState.kind === 'ready' && (
+            <>
+              <AddressCard address={ratesState.address} />
+              <CourierPicker
+                rates={ratesState.rates}
+                selected={selectedRate}
+                onSelect={setSelectedRate}
+              />
+              <div className="flex items-center justify-between px-1">
+                <p className="text-brand-parchment text-sm">Ongkir</p>
+                <p className="text-brand-crema text-sm font-semibold" data-testid="shipping-cost">
+                  {selectedRate ? formatIDR(selectedRate.price) : '—'}
+                </p>
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Grand total */}
+        <div className="flex items-center justify-between px-1">
+          <p className="text-brand-crema text-base font-semibold">Total</p>
+          <p className="text-brand-crema text-lg font-semibold" data-testid="shipping-total">
+            {formatIDR(grandTotal)}
+          </p>
+        </div>
+
         {/* Notes */}
         <div className="flex flex-col gap-2">
-          <label
-            htmlFor="notes"
-            className="text-brand-parchment text-sm"
-          >
+          <label htmlFor="notes" className="text-brand-parchment text-sm">
             Catatan (opsional)
           </label>
           <textarea
@@ -146,7 +254,7 @@ export default function OrderReviewPage() {
         <div className="flex flex-col gap-3">
           <button
             onClick={handleConfirm}
-            disabled={submitting || cart.length === 0}
+            disabled={submitting || !canSubmit}
             data-testid="confirm-order-button"
             className="w-full py-3.5 rounded-lg bg-brand-crema text-brand-black font-semibold text-base
               hover:bg-brand-honey transition-colors duration-150
@@ -167,8 +275,4 @@ export default function OrderReviewPage() {
       </div>
     </main>
   )
-}
-
-function formatIDR(amount: number) {
-  return `Rp ${amount.toLocaleString('id-ID')}`
 }
