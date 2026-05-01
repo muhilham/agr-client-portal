@@ -29,7 +29,7 @@ export default defineConfig({
     // ── Authenticated client tests ──
     {
       name: 'portal',
-      testMatch: '**/tests/portal.spec.ts',
+      testMatch: ['**/tests/portal.spec.ts', '**/tests/shipping.spec.ts'],
       dependencies: ['auth-setup'],
       use: {
         ...devices['Desktop Chrome'],
