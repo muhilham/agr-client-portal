@@ -12,6 +12,9 @@ type OrderNotificationPayload = {
   clientName: string
   items: NotificationItem[]
   totalAmount: number
+  shippingCost?: number
+  shippingCourier?: string
+  shippingService?: string
   createdAt: Date
 }
 
@@ -35,13 +38,13 @@ function escapeHtml(text: string): string {
 }
 
 export async function sendOrderNotification(payload: OrderNotificationPayload): Promise<void> {
-  const { orderId, orderNumber, clientName, items, totalAmount, createdAt } = payload
+  const { orderId, orderNumber, clientName, items, totalAmount, shippingCost, shippingCourier, shippingService, createdAt } = payload
 
   const itemLines = items
     .map((i) => `  • ${escapeHtml(i.name)} × ${i.quantity} @ ${formatIDR(i.unitPrice)}`)
     .join('\n')
 
-  const message = [
+  const lines = [
     `🛒 <b>Pesanan Baru — ${escapeHtml(orderNumber)}</b>`,
     ``,
     `👤 <b>Klien:</b> ${escapeHtml(clientName)}`,
@@ -50,8 +53,19 @@ export async function sendOrderNotification(payload: OrderNotificationPayload): 
     `<b>Item:</b>`,
     itemLines,
     ``,
-    `💰 <b>Total: ${formatIDR(totalAmount)}</b>`,
-  ].join('\n')
+    `💰 <b>Subtotal: ${formatIDR(totalAmount)}</b>`,
+  ]
+
+  if (shippingCost != null) {
+    lines.push(`🚚 <b>Ongkir: ${formatIDR(shippingCost)}</b> ${shippingCourier && shippingService ? `(${escapeHtml(shippingCourier)} — ${escapeHtml(shippingService)})` : ''}`)
+    lines.push(``)
+    lines.push(`💰 <b>Total: ${formatIDR(totalAmount + shippingCost)}</b>`)
+  } else {
+    lines.push(``)
+    lines.push(`💰 <b>Total: ${formatIDR(totalAmount)}</b>`)
+  }
+
+  const message = lines.join('\n')
 
   const botToken = process.env.TELEGRAM_BOT_TOKEN
   const groupId = process.env.TELEGRAM_ORDER_GROUP_ID
@@ -68,6 +82,7 @@ export async function sendOrderNotification(payload: OrderNotificationPayload): 
     })
     return
   }
+
   let status: 'sent' | 'failed' = 'sent'
   let error: string | null = null
 
@@ -92,7 +107,7 @@ export async function sendOrderNotification(payload: OrderNotificationPayload): 
   } catch (err) {
     status = 'failed'
     error = err instanceof Error ? err.message : String(err)
-    throw err
+    console.error('[Telegram] Notification failed:', err)
   } finally {
     await supabase.from('notification_logs').insert({
       order_id: orderId,
