@@ -16,7 +16,7 @@ export const getShippingRatesInputSchema = z.object({
 
 export const createOrderInputSchema = z.object({
   items: z.array(orderItemInputSchema).min(1).max(100),
-  notes: z.string().max(200).optional(),
+  notes: z.string().max(500).optional(),
   shippingSelection: shippingSelectionSchema,
 })
 
