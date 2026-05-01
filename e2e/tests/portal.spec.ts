@@ -159,7 +159,7 @@ test.describe('Order review → submission (CP-03 → CP-04)', () => {
     await expect(itemRow).toBeVisible()
 
     // Total shows IDR amount
-    await expect(page.getByTestId('order-total')).toContainText('Rp')
+    await expect(page.getByTestId('order-grand-total')).toContainText('Rp')
 
     // Notes textarea present with 16px font (iOS zoom prevention)
     const notes = page.getByTestId('notes-input')
@@ -299,7 +299,7 @@ test.describe('Order detail (CP-05b)', () => {
     await expect(itemRow).toBeVisible()
 
     // Total visible
-    await expect(page.getByTestId('order-total')).toContainText('Rp')
+    await expect(page.getByTestId('order-grand-total')).toContainText('Rp')
 
     // Notes visible (we added 'Catatan E2E test')
     await expect(page.getByTestId('order-notes')).toContainText('Catatan E2E test')

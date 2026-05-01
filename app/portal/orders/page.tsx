@@ -5,6 +5,8 @@ import { FulfillmentBadge } from '@/components/FulfillmentBadge'
 import { PaymentBadge } from '@/components/PaymentBadge'
 import LogoutButton from '@/app/portal/_components/LogoutButton'
 
+export const dynamic = 'force-dynamic'
+
 export default async function OrdersPage() {
   const supabase = await createClient()
   const {
@@ -23,7 +25,7 @@ export default async function OrdersPage() {
 
   const { data: orders } = await supabase
     .from('orders')
-    .select('id, order_number, fulfillment_status, payment_status, total_amount, created_at')
+    .select('id, order_number, fulfillment_status, payment_status, total_amount, shipping_cost, created_at')
     .eq('client_id', client.id)
     .order('created_at', { ascending: false })
 
@@ -106,8 +108,8 @@ export default async function OrdersPage() {
                   <p className="text-brand-parchment text-xs sm:text-sm sm:self-center">
                     {fmt.format(new Date(order.created_at))}
                   </p>
-                  <p className="text-brand-crema text-sm font-semibold sm:self-center sm:text-right">
-                    {formatIDR(order.total_amount)}
+                  <p className="text-brand-crema text-sm font-semibold sm:self-center sm:text-right" data-testid={`order-grand-total-${order.id}`}>
+                    {formatIDR(order.total_amount + (order.shipping_cost ?? 0))}
                   </p>
                   <div className="hidden sm:flex sm:self-center">
                     <div className="flex gap-1.5">
