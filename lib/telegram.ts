@@ -38,83 +38,95 @@ function escapeHtml(text: string): string {
 }
 
 export async function sendOrderNotification(payload: OrderNotificationPayload): Promise<void> {
-  const { orderId, orderNumber, clientName, items, totalAmount, shippingCost, shippingCourier, shippingService, createdAt } = payload
-
-  const itemLines = items
-    .map((i) => `  • ${escapeHtml(i.name)} × ${i.quantity} @ ${formatIDR(i.unitPrice)}`)
-    .join('\n')
-
-  const lines = [
-    `🛒 <b>Pesanan Baru — ${escapeHtml(orderNumber)}</b>`,
-    ``,
-    `👤 <b>Klien:</b> ${escapeHtml(clientName)}`,
-    `📅 <b>Waktu:</b> ${formatWIB(createdAt)} WIB`,
-    ``,
-    `<b>Item:</b>`,
-    itemLines,
-    ``,
-    `💰 <b>Subtotal: ${formatIDR(totalAmount)}</b>`,
-  ]
-
-  if (shippingCost != null) {
-    lines.push(`🚚 <b>Ongkir: ${formatIDR(shippingCost)}</b> ${shippingCourier && shippingService ? `(${escapeHtml(shippingCourier)} — ${escapeHtml(shippingService)})` : ''}`)
-    lines.push(``)
-    lines.push(`💰 <b>Total: ${formatIDR(totalAmount + shippingCost)}</b>`)
-  } else {
-    lines.push(``)
-    lines.push(`💰 <b>Total: ${formatIDR(totalAmount)}</b>`)
-  }
-
-  const message = lines.join('\n')
-
-  const botToken = process.env.TELEGRAM_BOT_TOKEN
-  const groupId = process.env.TELEGRAM_ORDER_GROUP_ID
-  const supabase = await createClient()
-
-  if (!botToken || !groupId) {
-    console.warn('[Telegram] Missing TELEGRAM_BOT_TOKEN or TELEGRAM_ORDER_GROUP_ID')
-    await supabase.from('notification_logs').insert({
-      order_id: orderId,
-      order_number: orderNumber,
-      channel: 'telegram',
-      status: 'failed',
-      error: 'Missing TELEGRAM_BOT_TOKEN or TELEGRAM_ORDER_GROUP_ID',
-    })
-    return
-  }
-
-  let status: 'sent' | 'failed' = 'sent'
-  let error: string | null = null
-
   try {
-    const res = await fetch(
-      `https://api.telegram.org/bot${botToken}/sendMessage`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: groupId,
-          text: message,
-          parse_mode: 'HTML',
-        }),
-      }
-    )
+    const { orderId, orderNumber, clientName, items, totalAmount, shippingCost, shippingCourier, shippingService, createdAt } = payload
 
-    if (!res.ok) {
-      const body = await res.text()
-      throw new Error(`Telegram API error ${res.status}: ${body}`)
+    const itemLines = items
+      .map((i) => `  • ${escapeHtml(i.name)} × ${i.quantity} @ ${formatIDR(i.unitPrice)}`)
+      .join('\n')
+
+    const lines = [
+      `🛒 <b>Pesanan Baru — ${escapeHtml(orderNumber)}</b>`,
+      ``,
+      `👤 <b>Klien:</b> ${escapeHtml(clientName)}`,
+      `📅 <b>Waktu:</b> ${formatWIB(createdAt)} WIB`,
+      ``,
+      `<b>Item:</b>`,
+      itemLines,
+      ``,
+      `💰 <b>Subtotal: ${formatIDR(totalAmount)}</b>`,
+    ]
+
+    if (shippingCost != null) {
+      lines.push(`🚚 <b>Ongkir: ${formatIDR(shippingCost)}</b> ${shippingCourier && shippingService ? `(${escapeHtml(shippingCourier)} — ${escapeHtml(shippingService)})` : ''}`)
+      lines.push(``)
+      lines.push(`💰 <b>Total: ${formatIDR(totalAmount + shippingCost)}</b>`)
+    } else {
+      lines.push(``)
+      lines.push(`💰 <b>Total: ${formatIDR(totalAmount)}</b>`)
+    }
+
+    const message = lines.join('\n')
+
+    const botToken = process.env.TELEGRAM_BOT_TOKEN
+    const groupId = process.env.TELEGRAM_ORDER_GROUP_ID
+    const supabase = await createClient()
+
+    if (!botToken || !groupId) {
+      console.warn('[Telegram] Missing TELEGRAM_BOT_TOKEN or TELEGRAM_ORDER_GROUP_ID')
+      try {
+        await supabase.from('notification_logs').insert({
+          order_id: orderId,
+          order_number: orderNumber,
+          channel: 'telegram',
+          status: 'failed',
+          error: 'Missing TELEGRAM_BOT_TOKEN or TELEGRAM_ORDER_GROUP_ID',
+        })
+      } catch (logErr) {
+        console.error('[Telegram] Failed to log missing config:', logErr)
+      }
+      return
+    }
+
+    let status: 'sent' | 'failed' = 'sent'
+    let error: string | null = null
+
+    try {
+      const res = await fetch(
+        `https://api.telegram.org/bot${botToken}/sendMessage`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: groupId,
+            text: message,
+            parse_mode: 'HTML',
+          }),
+        }
+      )
+
+      if (!res.ok) {
+        const body = await res.text()
+        throw new Error(`Telegram API error ${res.status}: ${body}`)
+      }
+    } catch (err) {
+      status = 'failed'
+      error = err instanceof Error ? err.message : String(err)
+      console.error('[Telegram] Notification failed:', err)
+    } finally {
+      try {
+        await supabase.from('notification_logs').insert({
+          order_id: orderId,
+          order_number: orderNumber,
+          channel: 'telegram',
+          status,
+          error,
+        })
+      } catch (logErr) {
+        console.error('[Telegram] Failed to log notification:', logErr)
+      }
     }
   } catch (err) {
-    status = 'failed'
-    error = err instanceof Error ? err.message : String(err)
-    console.error('[Telegram] Notification failed:', err)
-  } finally {
-    await supabase.from('notification_logs').insert({
-      order_id: orderId,
-      order_number: orderNumber,
-      channel: 'telegram',
-      status,
-      error,
-    })
+    console.error('[Telegram] Unexpected error in sendOrderNotification:', err)
   }
 }
