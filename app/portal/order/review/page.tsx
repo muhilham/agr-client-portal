@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createOrder } from '../_actions/createOrder'
@@ -20,55 +20,58 @@ function formatIDR(amount: number) {
   return `Rp ${amount.toLocaleString('id-ID')}`
 }
 
+async function loadShippingRates(
+  items: CartItem[],
+  setRatesState: React.Dispatch<React.SetStateAction<RatesState>>,
+  setSelectedRate: React.Dispatch<React.SetStateAction<RateOption | null>>
+) {
+  setRatesState({ kind: 'loading' })
+  setSelectedRate(null)
+  const result = await getShippingRates({
+    items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+  })
+  if (!result.ok) {
+    if (result.error === 'NO_ADDRESS') {
+      setRatesState({ kind: 'no_address' })
+    } else {
+      const messages: Record<string, string> = {
+        INVALID_CART: 'Isi keranjang tidak valid, silakan kembali ke katalog',
+        ORIGIN_NOT_CONFIGURED: 'Pengiriman tidak tersedia, hubungi admin',
+        RATES_UNAVAILABLE: 'Tidak dapat menghitung ongkir saat ini',
+        INVALID_INPUT: 'Permintaan tidak valid',
+      }
+      setRatesState({ kind: 'error', message: messages[result.error] ?? 'Terjadi kesalahan' })
+    }
+    return
+  }
+  setRatesState({ kind: 'ready', rates: result.rates, address: result.address })
+}
+
 export default function OrderReviewPage() {
   const router = useRouter()
-  const [cart, setCart] = useState<CartItem[]>([])
+  const [cart, setCart] = useState<CartItem[]>(() => {
+    if (typeof window === 'undefined') return []
+    const stored = sessionStorage.getItem('cart')
+    if (!stored) return []
+    try {
+      return JSON.parse(stored)
+    } catch {
+      return []
+    }
+  })
   const [notes, setNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [loaded, setLoaded] = useState(false)
   const [ratesState, setRatesState] = useState<RatesState>({ kind: 'loading' })
   const [selectedRate, setSelectedRate] = useState<RateOption | null>(null)
 
-  const loadRates = useCallback(async (items: CartItem[]) => {
-    setRatesState({ kind: 'loading' })
-    setSelectedRate(null)
-    const result = await getShippingRates({
-      items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
-    })
-    if (!result.ok) {
-      if (result.error === 'NO_ADDRESS') {
-        setRatesState({ kind: 'no_address' })
-      } else {
-        const messages: Record<string, string> = {
-          INVALID_CART: 'Isi keranjang tidak valid, silakan kembali ke katalog',
-          ORIGIN_NOT_CONFIGURED: 'Pengiriman tidak tersedia, hubungi admin',
-          RATES_UNAVAILABLE: 'Tidak dapat menghitung ongkir saat ini',
-          INVALID_INPUT: 'Permintaan tidak valid',
-        }
-        setRatesState({ kind: 'error', message: messages[result.error] ?? 'Terjadi kesalahan' })
-      }
-      return
-    }
-    setRatesState({ kind: 'ready', rates: result.rates, address: result.address })
-  }, [])
-
   useEffect(() => {
-    const stored = sessionStorage.getItem('cart')
-    if (!stored) {
+    if (cart.length === 0) {
       router.replace('/portal')
       return
     }
-    try {
-      const parsed = JSON.parse(stored)
-      setCart(parsed)
-      loadRates(parsed)
-    } catch {
-      router.replace('/portal')
-      return
-    }
-    setLoaded(true)
-  }, [router, loadRates])
+    loadShippingRates(cart, setRatesState, setSelectedRate)
+  }, [router, cart])
 
   const subtotal = cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0)
   const shippingCost = selectedRate?.price ?? 0
@@ -92,7 +95,7 @@ export default function OrderReviewPage() {
     if (!result.ok) {
       if (result.error === 'Kurir tidak lagi tersedia, silakan pilih ulang') {
         setRatesState({ kind: 'loading' })
-        loadRates(cart)
+        loadShippingRates(cart, setRatesState, setSelectedRate)
       }
       setError(result.error)
       setSubmitting(false)
@@ -107,7 +110,7 @@ export default function OrderReviewPage() {
 
   const canSubmit = ratesState.kind === 'ready' && selectedRate != null
 
-  if (!loaded) {
+  if (ratesState.kind === 'loading') {
     return (
       <div className="min-h-screen bg-brand-black flex items-center justify-center">
         <div className="text-brand-parchment text-sm">Memuat…</div>
@@ -172,19 +175,13 @@ export default function OrderReviewPage() {
         <div data-testid="shipping-section" className="flex flex-col gap-3">
           <p className="text-brand-parchment text-xs uppercase tracking-wider">Pengiriman</p>
 
-          {ratesState.kind === 'loading' && (
-            <div className="rounded-xl border border-[rgba(245,235,201,0.25)] bg-brand-midnight px-5 py-6">
-              <div className="text-brand-parchment text-sm">Menghitung ongkir…</div>
-            </div>
-          )}
-
           {ratesState.kind === 'no_address' && <AddressCardEmpty />}
 
           {ratesState.kind === 'error' && (
             <div className="rounded-xl border border-[rgba(245,235,201,0.25)] bg-brand-midnight px-5 py-4 flex flex-col gap-3">
               <p className="text-brand-parchment text-sm">{ratesState.message}</p>
               <button
-                onClick={() => loadRates(cart)}
+                onClick={() => loadShippingRates(cart, setRatesState, setSelectedRate)}
                 data-testid="retry-rates-button"
                 className="text-brand-crema text-sm underline underline-offset-4 hover:text-brand-honey transition-colors self-start"
               >
