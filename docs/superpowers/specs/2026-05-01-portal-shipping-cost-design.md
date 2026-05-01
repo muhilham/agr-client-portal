@@ -76,9 +76,9 @@ Confirm submit
 | `package.json` | modify | Add `zod` direct dependency (currently transitive only) |
 | `lib/supabase/admin.ts` | new | `getSupabaseAdmin()` returning service-role client; reused by every portal server action that touches RLS-protected tables |
 | `lib/biteship.ts` | new | `getBiteshipLocation(id)` (wrapped with `React.cache`), `getBiteshipRates(params)` typed wrappers |
-| `lib/shipping.ts` | new | `groupRatesByCourier`, `findRateMatch`, `loadOriginLocation()` (calls cached `getBiteshipLocation`); pure helpers |
-| `lib/catalog.ts` | modify | `CatalogProduct` includes `ship_weight_grams`; query selects column |
-| `lib/telegram.ts` | modify | `sendOrderNotification` accepts shipping fields |
+| `lib/shipping.ts` | new | `groupRatesByCourier`, `findRateMatch(rates, courierCode, serviceCode)`, `loadOriginLocation()`, `loadShippingContext(clientId, items)` shared helper used by both `getShippingRates` and `createOrder` to eliminate duplication (loads address + products + origin + builds Biteship items + calls rates). Returns `ShippingContext = { ok: true, address, originLocation, rates } \| { ok: false, error }`. |
+| `lib/catalog.ts` | modify | `CatalogProduct` includes `ship_weight_grams`; query selects column. Replace existing `as unknown as {...}` cast with explicit row-typed interface (or `.returns<...>()` typing) to keep the new field type-safe. |
+| `lib/telegram.ts` | modify | `sendOrderNotification` accepts shipping fields. **Also remove the existing `throw err` in the catch block (line ~95)** — the function is documented as non-blocking but currently rethrows, forcing every caller to wrap in try/catch. After fix: log via `console.error`, set `status='failed'`, `finally` block still inserts `notification_logs`, then return `void`. |
 | `lib/schemas/order.ts` | new | Zod schemas: `getShippingRatesInputSchema`, `createOrderInputSchema`, `shippingSelectionSchema` |
 | `app/portal/order/_actions/getShippingRates.ts` | new | Server action returning grouped rates + address |
 | `app/portal/order/_actions/createOrder.ts` | modify | Accept `shippingSelection`, re-validate, save fields |
@@ -141,7 +141,24 @@ export interface RateOption {
 }
 
 export function groupRatesByCourier(rates: BiteshipRate[]): RateOption[]
-export function findRateMatch(rates: BiteshipRate[], courier: string, service: string): BiteshipRate | null
+
+// `serviceCode` matches Biteship's `courier_service_code` (e.g. "REG", "OKE"),
+// not display name. Naming is intentional to mirror the API field exactly.
+export function findRateMatch(
+  rates: BiteshipRate[],
+  courierCode: string,
+  serviceCode: string,
+): BiteshipRate | null
+
+// Shared by getShippingRates + createOrder to avoid duplicated address/origin/rates flow
+export type ShippingContext =
+  | { ok: true; address: AddressDisplay; originLocation: BiteshipLocation; rates: BiteshipRate[] }
+  | { ok: false; error: 'NO_ADDRESS' | 'INVALID_CART' | 'ORIGIN_NOT_CONFIGURED' | 'RATES_UNAVAILABLE' }
+
+export async function loadShippingContext(
+  clientId: string,
+  items: { productId: string; quantity: number }[],
+): Promise<ShippingContext>
 
 // app/portal/order/_actions/getShippingRates.ts
 export interface AddressDisplay {
@@ -195,24 +212,33 @@ export type CreateOrderInput = z.infer<typeof createOrderInputSchema>
 
 Both server actions call `schema.safeParse(input)` first; failure → return `{ ok: false, error: 'INVALID_INPUT' }` (rates) or `{ ok: false, error: 'Permintaan tidak valid' }` (createOrder).
 
-## Server Action: `getShippingRates`
+## Shared Helper: `loadShippingContext`
 
-All RLS-protected SELECTs (`clients`, `products`, `addresses`) MUST use `getSupabaseAdmin()` — the auth-context client (`createClient()`) is reserved for INSERTs into `orders`/`order_items` per existing portal exception. CLAUDE.md rule: server actions use service-role key, never anon key for cross-table reads.
+Lives in `lib/shipping.ts`. Encapsulates address + products + origin + rates flow used by both server actions. All SELECTs use `getSupabaseAdmin()` per CLAUDE.md rule (RLS-protected tables: `clients`, `products`, `addresses`).
 
-1. **Validate input:** `getShippingRatesInputSchema.safeParse(input)`. Failure → `{ ok: false, error: 'INVALID_INPUT' }`.
-2. **Auth:** load user via `createClient().auth.getUser()`. Look up `clients` row by email using `getSupabaseAdmin()`. Missing → throw.
-3. **Default address:** `getSupabaseAdmin().from('addresses').select(...).eq('client_id', client.id).eq('is_default', true).maybeSingle()`. None → `{ ok: false, error: 'NO_ADDRESS' }`.
-4. **Products:** call `getCatalogForClient(client.id)` (already uses admin client internally — verify; if not, fix). Validate every `productId` exists and `quantity >= minQty`. Mismatch → `{ ok: false, error: 'INVALID_CART' }`.
-5. **Origin (env-guarded):**
+Steps:
+1. **Default address:** `getSupabaseAdmin().from('addresses').select(...).eq('client_id', clientId).eq('is_default', true).maybeSingle()`. None → `{ ok: false, error: 'NO_ADDRESS' }`.
+2. **Products:** `getCatalogForClient(clientId)` (verify it uses admin client; fix if not). Validate every `productId` exists and `quantity >= minQty`. Mismatch → `{ ok: false, error: 'INVALID_CART' }`.
+3. **Origin (env-guarded, no non-null assertion):**
    ```typescript
    const originLocationId = process.env.BITESHIP_ORIGIN_LOCATION_ID
    if (!originLocationId) return { ok: false, error: 'ORIGIN_NOT_CONFIGURED' }
-   const origin = await loadOriginLocation(originLocationId)  // wraps cached getBiteshipLocation
+   const origin = await loadOriginLocation(originLocationId)
    if (!origin) return { ok: false, error: 'ORIGIN_NOT_CONFIGURED' }
    ```
-6. **Build items:** `{ name: product.name, value: product.effectivePrice * quantity, weight: product.ship_weight_grams, quantity }`.
-7. **Call rates:** `getBiteshipRates({...})`. Pass empty `couriers: ''` (all). Failure or empty `pricing: []` → `{ ok: false, error: 'RATES_UNAVAILABLE' }`.
-8. **Group + return:** `groupRatesByCourier(rates)` → `{ ok: true, rates, address: { recipient_name, address_line, postal_code } }`.
+4. **Build Biteship items:** Per Biteship API contract, `items[].value` is **per-unit** declared value (used for insurance), not line total. Use unit price:
+   ```typescript
+   { name: product.name, value: product.effectivePrice, weight: product.ship_weight_grams, quantity }
+   ```
+5. **Call rates:** `getBiteshipRates({ origin..., destination..., items, couriers: '' })`. Failure or empty `pricing: []` → `{ ok: false, error: 'RATES_UNAVAILABLE' }`.
+6. **Return:** `{ ok: true, address, originLocation: origin, rates }`.
+
+## Server Action: `getShippingRates`
+
+1. **Validate input:** `getShippingRatesInputSchema.safeParse(input)`. Failure → `{ ok: false, error: 'INVALID_INPUT' }`.
+2. **Auth:** load user via `createClient().auth.getUser()`. Look up `clients` row by email using `getSupabaseAdmin()`. Missing → throw (genuine bug, not user-recoverable).
+3. **Load context:** `const ctx = await loadShippingContext(client.id, parsed.items)`. If `!ctx.ok` → return `{ ok: false, error: ctx.error }`.
+4. **Group + return:** `groupRatesByCourier(ctx.rates)` → `{ ok: true, rates, address: ctx.address }`.
 
 ## Server Action: `createOrder` (modified)
 
@@ -226,8 +252,12 @@ shippingSelection: { courier_code: string; service_code: string }
 Steps:
 1. **Validate input:** `createOrderInputSchema.safeParse(input)`. Failure → `{ ok: false, error: 'Permintaan tidak valid' }`.
 2. **Auth + items revalidation** (existing logic, but use `getSupabaseAdmin()` for `clients`/`products` reads). Item failures → `{ ok: false, error: '<Indonesian message>' }`.
-3. **Re-run steps 3–7 of `getShippingRates`** (default address, origin via guarded env, rates call). Any rates step failure → `{ ok: false, error: <translated Indonesian message> }`.
-4. **Match courier:** `findRateMatch(rates, shippingSelection.courier_code, shippingSelection.service_code)`. Null → `{ ok: false, error: 'Kurir tidak lagi tersedia, silakan pilih ulang' }`.
+3. **Load context:** `const ctx = await loadShippingContext(client.id, parsed.items)`. Map `ctx.error` → Indonesian:
+   - `NO_ADDRESS` → `'Alamat pengiriman tidak ditemukan'`
+   - `INVALID_CART` → `'Isi keranjang tidak valid'`
+   - `ORIGIN_NOT_CONFIGURED` → `'Pengiriman tidak tersedia, hubungi admin'`
+   - `RATES_UNAVAILABLE` → `'Pengiriman tidak dapat dihitung'`
+4. **Match courier:** `findRateMatch(ctx.rates, shippingSelection.courier_code, shippingSelection.service_code)`. Null → `{ ok: false, error: 'Kurir tidak lagi tersedia, silakan pilih ulang' }`.
 5. **INSERT `orders`** (auth-context `createClient()`) with new fields populated from `match` (Biteship authoritative price):
    - `shipping_cost: match.price`
    - `shipping_courier: match.courier_code`
@@ -269,7 +299,10 @@ type RatesState =
   | { kind: 'error'; message: string }
 ```
 
-Mount → `getShippingRates({items})` once. Result mapped to state.
+Mount → `getShippingRates({items})` once via `useEffect`. Result mapped to state.
+
+**Trade-off:** Server actions are POST and have no Next.js data cache. Every mount (including back/forward navigation, soft refresh, browser bfcache miss) triggers a fresh Biteship rates API call. Acceptable for MVP — review page mounts are rare per user session and the response is cart-dependent (cache key would need cart hash). If Biteship cost becomes significant, add a short-window in-memory memo keyed on `(clientId, addressId, sortedCartHash)` in `loadShippingContext`.
+
 - `loading`: skeleton in courier section.
 - `ready`: render `<AddressCard address={...} />` + `<CourierPicker rates={...} selected={selected} onSelect={setSelected} />`.
 - `no_address`: render "Hubungi admin untuk menambahkan alamat pengiriman" block. Hide courier list. Hide submit.
@@ -289,25 +322,27 @@ If submit returns `'Kurir tidak lagi tersedia'` error → reset state to `loadin
 
 ## Order Detail Page
 
-Add a Shipping section after Items, before Notes:
+Add a Shipping section after Items, before Notes — **rendered conditionally**: hide entirely for legacy orders where `shipping_cost IS NULL` (no shipping data to display).
 
 ```tsx
-<section>
-  <h2>Pengiriman</h2>
-  <div>Kurir: {courier_name} — {service_name}</div>
-  <div>Estimasi: {shipping_etd}</div>
-  <div>Biaya: {formatIDR(shipping_cost)}</div>
-</section>
+{order.shipping_cost != null && (
+  <section>
+    <h2>Pengiriman</h2>
+    <div>Kurir: {order.shipping_courier} — {order.shipping_service}</div>
+    <div>Estimasi: {order.shipping_etd}</div>
+    <div>Biaya: {formatIDR(order.shipping_cost)}</div>
+  </section>
+)}
 ```
 
 Total block restructured:
 ```
 Subtotal:     Rp X
-Shipping:     Rp Y   (— if NULL)
-Grand Total:  Rp X+Y
+Shipping:     Rp Y                  (only shown if shipping_cost != null)
+Grand Total:  Rp X+Y                (= Rp X if shipping_cost is null)
 ```
 
-NULL `shipping_cost` (legacy orders) → render "—" for shipping, grand total = subtotal.
+Both the shipping line in the total block and the standalone Shipping section are gated on `shipping_cost != null` — legacy orders show only the original Total layout.
 
 ## Order List Page
 
@@ -339,8 +374,10 @@ Telegram notification stays non-blocking (existing try/catch).
 
 **Approach:** Playwright E2E with Biteship mocked at `page.route()`. No unit layer in repo.
 
-New file: `e2e/tests/shipping.spec.ts`
-New helpers: `e2e/helpers/biteship.ts` (`mockBiteshipRates`, `mockBiteshipLocation`, `mockBiteshipFailure`).
+**File paths (be explicit):**
+- New test file: `e2e/tests/shipping.spec.ts`
+- New Biteship mock helper: `e2e/helpers/biteship.ts` (new directory `e2e/helpers/`) — exports `mockBiteshipRates`, `mockBiteshipLocation`, `mockBiteshipFailure`.
+- New seed helper: `e2e/helpers/seed.ts` — exports `seedClientWithDefaultAddress({ email, addressOverrides? })`. Existing `e2e/setup/auth.setup.ts` handles auth-only seed; this new helper extends with `addresses` row insertion (uses service-role Supabase client). Reused by all shipping tests.
 
 Cases:
 1. Happy path — seed client + default address, mock rates with 3 couriers, pick one, submit, verify order detail shows shipping fields.
