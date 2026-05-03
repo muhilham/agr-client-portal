@@ -1,6 +1,6 @@
 import { getSupabaseAdmin } from '@/lib/supabase/admin'
 import { getCatalogForClient } from '@/lib/catalog'
-import { getBiteshipLocation, getBiteshipRates, type BiteshipLocation, type BiteshipRate } from '@/lib/biteship'
+import { getBiteshipLocation, getBiteshipRates, getBiteshipCouriers, type BiteshipLocation, type BiteshipRate } from '@/lib/biteship'
 
 export interface AddressDisplay {
   recipient_name: string
@@ -117,12 +117,18 @@ export async function loadShippingContext(
     quantity: i.quantity,
   }))
 
-  // 5. Call rates (omit couriers to use all enabled couriers)
+  // 5. Call rates (dynamic couriers with fallback)
+  const dynamicCouriers = await getBiteshipCouriers()
+  const couriers = dynamicCouriers?.join(',')
+    ?? process.env.BITESHIP_COURIERS
+    ?? 'jne,tiki,sicepat,anteraja,jnt,ninja'
+
   const rates = await getBiteshipRates({
     origin_postal_code: origin.postal_code,
     origin_latitude: origin.latitude,
     origin_longitude: origin.longitude,
     destination_postal_code: address.postal_code,
+    couriers,
     items: biteshipItems,
   })
 
