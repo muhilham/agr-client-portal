@@ -1,6 +1,14 @@
 import { getSupabaseAdmin } from '@/lib/supabase/admin'
 import { getCatalogForClient } from '@/lib/catalog'
-import { getBiteshipLocation, getBiteshipRates, getBiteshipCouriers, type BiteshipLocation, type BiteshipRate } from '@/lib/biteship'
+import {
+  getBiteshipLocation,
+  getBiteshipRates,
+  getBiteshipCouriers,
+  type BiteshipLocation,
+  type BiteshipRate,
+} from '@/lib/biteship'
+
+const DEFAULT_COURIERS = 'jne,tiki,sicepat,anteraja,jnt,ninja'
 
 export interface AddressDisplay {
   recipient_name: string
@@ -119,9 +127,13 @@ export async function loadShippingContext(
 
   // 5. Call rates (dynamic couriers with fallback)
   const dynamicCouriers = await getBiteshipCouriers()
-  const couriers = dynamicCouriers?.join(',')
-    ?? process.env.BITESHIP_COURIERS
-    ?? 'jne,tiki,sicepat,anteraja,jnt,ninja'
+  const couriers = (dynamicCouriers && dynamicCouriers.length > 0)
+    ? dynamicCouriers.join(',')
+    : process.env.BITESHIP_COURIERS ?? DEFAULT_COURIERS
+
+  if (!couriers) {
+    console.warn('[Shipping] No couriers available (dynamic fetch empty and no fallback configured)')
+  }
 
   const rates = await getBiteshipRates({
     origin_postal_code: origin.postal_code,
