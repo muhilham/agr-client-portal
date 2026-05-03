@@ -37,17 +37,30 @@ export async function loadShippingContext(
 ): Promise<ShippingContext> {
   const supabase = getSupabaseAdmin()
 
-  // 1. Default address
-  const { data: addressRow, error: addressErr } = await supabase
+  // 1. Default address (fallback to any address if no default)
+  let addressRow = await supabase
     .from('addresses')
     .select('recipient_name, address_line, postal_code')
     .eq('client_id', clientId)
     .eq('is_default', true)
     .maybeSingle()
+    .then(({ data, error }) => {
+      if (error) {
+        console.error('[Shipping] address query error:', error)
+        return null
+      }
+      return data
+    })
 
-  if (addressErr) {
-    console.error('[Shipping] address query error:', addressErr)
-    return { ok: false, error: 'NO_ADDRESS' }
+  if (!addressRow) {
+    // Fallback: use any address for this client
+    addressRow = await supabase
+      .from('addresses')
+      .select('recipient_name, address_line, postal_code')
+      .eq('client_id', clientId)
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => data ?? null)
   }
 
   if (!addressRow) {
