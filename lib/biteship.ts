@@ -59,7 +59,7 @@ export interface BiteshipRatesParams {
   destination_postal_code: string
   destination_latitude?: number | null
   destination_longitude?: number | null
-  couriers?: string
+  couriers: string
   items: BiteshipRatesItem[]
 }
 
@@ -72,13 +72,59 @@ export interface BiteshipRate {
   price: number
 }
 
+interface BiteshipCourier {
+  courier_code: string
+  courier_name: string
+}
+
+interface BiteshipCouriersResponse {
+  success?: boolean
+  couriers?: BiteshipCourier[]
+}
+
+const CACHE_TTL_MS = 3_600_000 // 1 hour
+const courierCache = new Map<string, { codes: string[]; fetchedAt: number }>()
+
+export async function getBiteshipCouriers(): Promise<string[] | null> {
+  const apiKey = getApiKey()
+  const cached = courierCache.get(apiKey)
+
+  if (cached && Date.now() - cached.fetchedAt < CACHE_TTL_MS) {
+    return cached.codes
+  }
+
+  try {
+    const res = await fetchWithTimeout(`${BITESHIP_BASE_URL}/couriers`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    })
+
+    if (!res.ok) {
+      console.error('[Biteship] couriers error:', res.status, await res.text())
+      return null
+    }
+
+    const json = (await res.json()) as BiteshipCouriersResponse
+    const codes = (json.couriers ?? [])
+      .map((c) => c.courier_code)
+      .filter(Boolean)
+
+    if (codes.length === 0) {
+      console.warn('[Biteship] couriers response empty')
+      return null
+    }
+
+    courierCache.set(apiKey, { codes, fetchedAt: Date.now() })
+    return codes
+  } catch (err) {
+    console.error('[Biteship] getBiteshipCouriers failed:', err)
+    return null
+  }
+}
+
 export async function getBiteshipRates(params: BiteshipRatesParams): Promise<BiteshipRate[]> {
   try {
-    const body: Record<string, unknown> = { ...params }
-    if (!params.couriers) {
-      delete body.couriers
-    }
     // Strip null lat/lng values — Biteship requires postal codes if coordinates are missing
+    const body: Record<string, unknown> = { ...params }
     for (const key of Object.keys(body)) {
       if (body[key] == null) {
         delete body[key]
