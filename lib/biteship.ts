@@ -78,6 +78,12 @@ export async function getBiteshipRates(params: BiteshipRatesParams): Promise<Bit
     if (!params.couriers) {
       delete body.couriers
     }
+    // Strip null lat/lng values — Biteship requires postal codes if coordinates are missing
+    for (const key of Object.keys(body)) {
+      if (body[key] == null) {
+        delete body[key]
+      }
+    }
 
     const res = await fetchWithTimeout(`${BITESHIP_BASE_URL}/rates/couriers`, {
       method: 'POST',
