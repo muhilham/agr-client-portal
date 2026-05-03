@@ -117,14 +117,13 @@ export async function loadShippingContext(
     quantity: i.quantity,
   }))
 
-  // 5. Call rates
+  // 5. Call rates (omit couriers to use all enabled couriers)
   const rates = await getBiteshipRates({
     origin_postal_code: origin.postal_code,
     origin_latitude: origin.latitude,
     origin_longitude: origin.longitude,
     destination_postal_code: address.postal_code,
     items: biteshipItems,
-    couriers: '',
   })
 
   if (rates.length === 0) {
