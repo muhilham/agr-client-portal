@@ -68,25 +68,30 @@ catalog.set(p.id, {
 
 - [ ] **Step 3: Set flag in client_products loop**
 
-In `getCatalogForClient`, update the `catalog.set` call inside the `for (const cp of clientProducts ?? [])` loop (around line 78):
+In `getCatalogForClient`, update the `catalog.set` call inside the `for (const cp of clientProducts ?? [])` loop (around line 78). **Ensure the `const p = cp.products` destructuring is present** so `p` is defined:
 
 ```ts
-catalog.set(p.id, {
-  id: p.id,
-  name: p.name,
-  description: p.description,
-  unit: p.unit,
-  sku: p.sku,
-  imageUrl: p.image_url,
-  effectivePrice: cp.custom_price != null ? Number(cp.custom_price) : Number(p.base_price),
-  minQty: cp.min_qty ?? 1,
-  isGlobal: p.is_global,
-  isClientAssigned: true,
-  shipWeightGrams: Number(p.ship_weight_grams),
-})
+for (const cp of clientProducts ?? []) {
+  const p = cp.products
+  if (!p || !p.is_active) continue
+
+  catalog.set(p.id, {
+    id: p.id,
+    name: p.name,
+    description: p.description,
+    unit: p.unit,
+    sku: p.sku,
+    imageUrl: p.image_url,
+    effectivePrice: cp.custom_price != null ? Number(cp.custom_price) : Number(p.base_price),
+    minQty: cp.min_qty ?? 1,
+    isGlobal: p.is_global,
+    isClientAssigned: true,
+    shipWeightGrams: Number(p.ship_weight_grams),
+  })
+}
 ```
 
-- [ ] **Step 3: Verify TypeScript compiles (Task 1)**
+- [ ] **Step 4: Verify TypeScript compiles (Task 1)**
 
 ```bash
 npx tsc --noEmit
@@ -94,7 +99,7 @@ npx tsc --noEmit
 
 Expected: no errors. If you see errors about missing `isClientAssigned`, you missed a `catalog.set` call — there are exactly two in `getCatalogForClient`.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add lib/catalog.ts
@@ -110,7 +115,44 @@ git commit -m "feat(portal): add isClientAssigned flag to CatalogProduct"
 
 **Context:** The current setup creates one product (`is_global: false`) and assigns it to the test client. With only client-assigned products, the tab logic hides tabs entirely (correct behavior, but untestable). We need at least one `is_global: true` product that is NOT in `client_products` for the test client.
 
-- [ ] **Step 1: Add global product seed block after the existing client product assignment**
+- [ ] **Step 0: Verify Supabase client uses service role key**
+
+Confirm `e2e/global-setup.ts` initializes the Supabase client with `SUPABASE_SERVICE_ROLE_KEY` (not the anon key). The existing setup should already show:
+
+```ts
+const supabase = createClient(supabaseUrl, serviceRoleKey, {
+  auth: { persistSession: false },
+})
+```
+
+This is required because the setup inserts directly into the `products` table, which may have RLS enabled.
+
+- [ ] **Step 1: Exclude global test product from the existing product query**
+
+Update the existing product lookup (around line 104) so it never selects `E2E-GLOBAL-001` as the product to assign to the test client. Change:
+
+```ts
+const { data: existingProducts } = await supabase
+  .from('products')
+  .select('id')
+  .eq('is_active', true)
+  .limit(1)
+```
+
+To:
+
+```ts
+const { data: existingProducts } = await supabase
+  .from('products')
+  .select('id')
+  .eq('is_active', true)
+  .neq('sku', 'E2E-GLOBAL-001')
+  .limit(1)
+```
+
+This prevents a race condition where the global product gets assigned to the test client, leaving zero assigned products after the cleanup step below.
+
+- [ ] **Step 2: Add global product seed block after the existing client product assignment**
 
 In `e2e/global-setup.ts`, append this block immediately after the `if (assignErr && ...)` block (after line 147), before the stale orders cleanup section:
 
@@ -124,8 +166,10 @@ const { data: existingGlobalProduct } = await supabase
   .eq('is_active', true)
   .maybeSingle()
 
+let globalProductId: string | null = null
+
 if (!existingGlobalProduct) {
-  const { error: globalProductErr } = await supabase
+  const { data: newGlobalProduct, error: globalProductErr } = await supabase
     .from('products')
     .insert({
       name: 'E2E Global Product',
@@ -133,17 +177,35 @@ if (!existingGlobalProduct) {
       unit: 'kg',
       sku: 'E2E-GLOBAL-001',
       base_price: 50000,
+      ship_weight_grams: 1000,
       is_active: true,
       is_global: true,
     })
+    .select('id')
+    .single()
   if (globalProductErr) throw new Error(`Failed to insert global product: ${globalProductErr.message}`)
+  globalProductId = newGlobalProduct!.id
   console.log('[setup] Created E2E global product (E2E-GLOBAL-001)')
 } else {
+  globalProductId = existingGlobalProduct.id
   console.log('[setup] E2E global product already exists')
+}
+
+// Ensure the global product is NEVER assigned to the test client
+// (otherwise both tabs won't render because all products would be "assigned")
+if (globalProductId) {
+  const { error: deleteErr } = await supabase
+    .from('client_products')
+    .delete()
+    .eq('client_id', clientId)
+    .eq('product_id', globalProductId)
+  if (deleteErr && !deleteErr.message.includes('no rows')) {
+    console.warn(`[setup] Warning removing global product assignment: ${deleteErr.message}`)
+  }
 }
 ```
 
-- [ ] **Step 2: Verify setup runs without errors**
+- [ ] **Step 4: Verify setup runs without errors**
 
 ```bash
 npx playwright test --project=setup 2>&1 | tail -20
@@ -151,7 +213,7 @@ npx playwright test --project=setup 2>&1 | tail -20
 
 Expected: `[setup] E2E global product already exists` or `[setup] Created E2E global product` in output, exit 0.
 
-- [ ] **Step 3: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add e2e/global-setup.ts
@@ -164,6 +226,21 @@ git commit -m "test(portal): seed global-only product for tab E2E tests"
 
 **Files:**
 - Modify: `e2e/tests/portal.spec.ts`
+
+- [ ] **Step 0: Verify `getFirstProductId` helper exists (no-op if already present)**
+
+The `'cart persists when switching tabs'` test below calls `getFirstProductId(page)`. This helper is **already defined** in `e2e/tests/portal.spec.ts` (lines 44–49). This step is a verification only — no action is needed unless the helper has been removed.
+
+If it is somehow missing, add it at the top of the file with the other helpers:
+
+```ts
+async function getFirstProductId(page: Page): Promise<string> {
+  const card = page.locator('[data-testid^="product-card-"]').first()
+  await card.waitFor()
+  const testId = await card.getAttribute('data-testid')
+  return testId!.replace('product-card-', '')
+}
+```
 
 - [ ] **Step 1: Add tab test describe block**
 
@@ -186,8 +263,7 @@ test.describe('Product list tabs (CP-02b)', () => {
   test('Produk Lainnya tab shows global products', async ({ page }) => {
     await page.goto('/portal')
     await page.getByTestId('tab-other').click()
-    const cards = page.locator('[data-testid^="product-card-"]')
-    await expect(cards.first()).toBeVisible()
+    await expect(page.getByText('E2E Global Product')).toBeVisible()
   })
 
   test('cart persists when switching tabs', async ({ page }) => {
@@ -239,6 +315,16 @@ git commit -m "test(portal): add failing E2E tests for product list tabs"
 **Files:**
 - Modify: `app/portal/_components/CatalogView.tsx`
 
+- [ ] **Step 0: Verify `'use client'` directive**
+
+Confirm the top of `app/portal/_components/CatalogView.tsx` already contains:
+
+```ts
+'use client'
+```
+
+If it is missing, add it before any imports. This file uses `useState` and event handlers, which require the client component directive.
+
 - [ ] **Step 1: Add tab state and derived lists**
 
 In `CatalogView.tsx`, add the following immediately after the existing `const [quantities, setQuantities] = useState<Record<string, number>>({})` line:
@@ -282,8 +368,9 @@ Replace it with:
 ```tsx
 <>
   {showTabs && (
-    <div className="flex border-b border-[rgba(245,235,201,0.2)]">
+    <div role="tablist" className="flex border-b border-[rgba(245,235,201,0.2)]">
       <button
+        role="tab"
         data-testid="tab-mine"
         aria-selected={tab === 'mine'}
         onClick={() => setTab('mine')}
@@ -296,6 +383,7 @@ Replace it with:
         Produk Saya
       </button>
       <button
+        role="tab"
         data-testid="tab-other"
         aria-selected={tab === 'other'}
         onClick={() => setTab('other')}
