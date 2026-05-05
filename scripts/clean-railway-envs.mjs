@@ -21,7 +21,6 @@ const ALLOWED_ENVS = ['production', 'staging'];
 // Railway auto-generated envs that must NEVER be deleted
 const RAILWAY_PREFIXES = [
   'RAILWAY_',
-  'PORT',
 ];
 
 function parseArgs() {

@@ -88,8 +88,6 @@ async function syncToRailway(env, vars, dryRun) {
     return;
   }
 
-  const args = entries.map(([k, v]) => `${k}=${v}`);
-
   if (dryRun) {
     console.log(`[DRY RUN] Would set ${entries.length} variable(s) in Railway ${env}:`);
     for (const [k, v] of entries) {
@@ -100,12 +98,19 @@ async function syncToRailway(env, vars, dryRun) {
   }
 
   console.log(`Syncing ${entries.length} variable(s) to Railway ${env}...`);
-  await exec('railway', [
-    'variable', 'set',
-    '--service', 'agr-client-portal',
-    '--environment', env,
-    ...args,
-  ]);
+
+  const BATCH_SIZE = 50;
+  for (let i = 0; i < entries.length; i += BATCH_SIZE) {
+    const batch = entries.slice(i, i + BATCH_SIZE);
+    const batchArgs = batch.map(([k, v]) => `${k}=${v}`);
+    await exec('railway', [
+      'variable', 'set',
+      '--service', 'agr-client-portal',
+      '--environment', env,
+      '--skip-deploys',
+      ...batchArgs,
+    ]);
+  }
   console.log('Done.');
 }
 
@@ -122,6 +127,10 @@ async function main() {
 
     const content = await readFile(tmpFile, 'utf-8');
     const vars = parseEnvFile(content);
+
+    if (Object.keys(vars).length === 0) {
+      throw new Error('Decrypted env file contains no variables. Aborting to prevent wiping Railway envs.');
+    }
 
     await syncToRailway(env, vars, dryRun);
   } finally {

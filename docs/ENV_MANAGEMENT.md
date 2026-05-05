@@ -236,10 +236,10 @@ export RAILWAY_TOKEN=xxx
 
 2. Update `.sops.yaml` with new public key
 
-3. Re-encrypt all env files:
+3. Re-encrypt all env files with the new key:
    ```bash
-   sops -r -i .sops.env.production
-   sops -r -i .sops.env.staging
+   sops rotate -i .sops.env.production
+   sops rotate -i .sops.env.staging
    ```
 
 4. Update `SOPS_AGE_KEY` GitHub secret with new private key

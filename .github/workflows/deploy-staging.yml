@@ -36,6 +36,9 @@ jobs:
           sudo mv age/age /usr/local/bin/
           sudo mv age/age-keygen /usr/local/bin/
 
+      - name: Verify sops and age
+        run: sops --version && age --version
+
       - name: Decrypt & sync staging envs
         run: |
           export SOPS_AGE_KEY="${{ secrets.SOPS_AGE_KEY }}"
