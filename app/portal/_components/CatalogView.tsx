@@ -43,6 +43,12 @@ function getGreeting(): string {
 
 export default function CatalogView({ client, catalog }: Props) {
   const [quantities, setQuantities] = useState<Record<string, number>>({})
+  const [tab, setTab] = useState<'mine' | 'other'>('mine')
+
+  const myProducts = catalog.filter((p) => p.isClientAssigned)
+  const otherProducts = catalog.filter((p) => !p.isClientAssigned)
+  const showTabs = myProducts.length > 0 && otherProducts.length > 0
+  const displayedProducts = showTabs ? (tab === 'mine' ? myProducts : otherProducts) : catalog
 
   const handleQuantityChange = (productId: string, qty: number) => {
     setQuantities((prev) => ({ ...prev, [productId]: qty }))
@@ -116,14 +122,46 @@ export default function CatalogView({ client, catalog }: Props) {
             </div>
           ) : (
             <>
-              <h2 className="text-brand-parchment text-sm uppercase tracking-widest">
-                Katalog Produk
-              </h2>
+              {showTabs && (
+                <div role="tablist" className="flex border-b border-[rgba(245,235,201,0.2)]">
+                  <button
+                    role="tab"
+                    data-testid="tab-mine"
+                    aria-selected={tab === 'mine'}
+                    onClick={() => setTab('mine')}
+                    className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                      tab === 'mine'
+                        ? 'border-brand-crema text-brand-crema'
+                        : 'border-transparent text-brand-parchment opacity-60'
+                    }`}
+                  >
+                    Produk Saya
+                  </button>
+                  <button
+                    role="tab"
+                    data-testid="tab-other"
+                    aria-selected={tab === 'other'}
+                    onClick={() => setTab('other')}
+                    className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                      tab === 'other'
+                        ? 'border-brand-crema text-brand-crema'
+                        : 'border-transparent text-brand-parchment opacity-60'
+                    }`}
+                  >
+                    Produk Lainnya
+                  </button>
+                </div>
+              )}
+              {!showTabs && (
+                <h2 className="text-brand-parchment text-sm uppercase tracking-widest">
+                  Katalog Produk
+                </h2>
+              )}
               <div
                 className="grid grid-cols-1 sm:grid-cols-2 gap-4"
                 data-testid="product-grid"
               >
-                {catalog.map((product) => (
+                {displayedProducts.map((product) => (
                   <ProductCard
                     key={product.id}
                     product={product}
