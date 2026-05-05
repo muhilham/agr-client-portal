@@ -1,0 +1,6 @@
+# .sops.yaml
+# SOPS configuration: encrypt .sops.env.* files with Age
+creation_rules:
+  - path_regex: \.sops\.env\.(production|staging)$
+    age: >-
+      age1pqtm0c72zdrf3a0gegxsw6vwwcxue45s9s0equelxkhv8vj2cczq9cq0us
