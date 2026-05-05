@@ -1,6 +1,6 @@
 Read the implementation plan at:
 
-docs/superpowers/plans/2026-04-30-portal-order-status-split.md
+docs/superpowers/plans/2026-05-05-product-list-tabs.md
 
 Do NOT execute anything yet.
 
