@@ -142,6 +142,51 @@ test.describe('Portal catalog (CP-02)', () => {
   })
 })
 
+test.describe('Product list tabs (CP-02b)', () => {
+  test('shows Produk Saya and Produk Lainnya tabs when both types exist', async ({ page }) => {
+    await page.goto('/portal')
+    await expect(page.getByTestId('tab-mine')).toBeVisible()
+    await expect(page.getByTestId('tab-other')).toBeVisible()
+  })
+
+  test('Produk Saya tab is active by default', async ({ page }) => {
+    await page.goto('/portal')
+    const tab = page.getByTestId('tab-mine')
+    await expect(tab).toHaveAttribute('aria-selected', 'true')
+  })
+
+  test('Produk Lainnya tab shows global products', async ({ page }) => {
+    await page.goto('/portal')
+    await page.getByTestId('tab-other').click()
+    await expect(page.getByText('E2E Global Product')).toBeVisible()
+  })
+
+  test('cart persists when switching tabs', async ({ page }) => {
+    await page.goto('/portal')
+
+    const productId = await getFirstProductId(page)
+    await page.getByTestId(`qty-increment-${productId}`).click()
+    await expect(page.getByTestId('sticky-cart')).toBeVisible()
+
+    await page.getByTestId('tab-other').click()
+    await expect(page.getByTestId('sticky-cart')).toBeVisible()
+
+    await page.getByTestId('tab-mine').click()
+    await expect(page.getByTestId('sticky-cart')).toBeVisible()
+  })
+
+  test('switching back to Produk Saya shows client products again', async ({ page }) => {
+    await page.goto('/portal')
+
+    await page.getByTestId('tab-other').click()
+    await page.getByTestId('tab-mine').click()
+
+    const tab = page.getByTestId('tab-mine')
+    await expect(tab).toHaveAttribute('aria-selected', 'true')
+    await expect(page.locator('[data-testid^="product-card-"]').first()).toBeVisible()
+  })
+})
+
 test.describe('Order review → submission (CP-03 → CP-04)', () => {
   test('navigates to /portal/order/review and shows correct summary', async ({ page }) => {
     await page.goto('/portal')
