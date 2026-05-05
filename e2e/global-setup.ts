@@ -105,6 +105,7 @@ export default async function globalSetup() {
     .from('products')
     .select('id')
     .eq('is_active', true)
+    .neq('sku', 'E2E-GLOBAL-001')
     .limit(1)
 
   let productId: string
@@ -145,6 +146,53 @@ export default async function globalSetup() {
 
   if (assignErr && !assignErr.message.includes('duplicate')) {
     console.warn(`[setup] client_products upsert warning: ${assignErr.message}`)
+  }
+
+  // ── 3b. Ensure a global-only product exists (not assigned to test client) ──
+
+  const { data: existingGlobalProduct } = await supabase
+    .from('products')
+    .select('id')
+    .eq('sku', 'E2E-GLOBAL-001')
+    .eq('is_active', true)
+    .maybeSingle()
+
+  let globalProductId: string | null = null
+
+  if (!existingGlobalProduct) {
+    const { data: newGlobalProduct, error: globalProductErr } = await supabase
+      .from('products')
+      .insert({
+        name: 'E2E Global Product',
+        description: 'Global product for tab E2E testing',
+        unit: 'kg',
+        sku: 'E2E-GLOBAL-001',
+        base_price: 50000,
+        ship_weight_grams: 1000,
+        is_active: true,
+        is_global: true,
+      })
+      .select('id')
+      .single()
+    if (globalProductErr) throw new Error(`Failed to insert global product: ${globalProductErr.message}`)
+    globalProductId = newGlobalProduct!.id
+    console.log('[setup] Created E2E global product (E2E-GLOBAL-001)')
+  } else {
+    globalProductId = existingGlobalProduct.id
+    console.log('[setup] E2E global product already exists')
+  }
+
+  // Ensure the global product is NEVER assigned to the test client
+  // (otherwise both tabs won't render because all products would be "assigned")
+  if (globalProductId) {
+    const { error: deleteErr } = await supabase
+      .from('client_products')
+      .delete()
+      .eq('client_id', clientId)
+      .eq('product_id', globalProductId)
+    if (deleteErr && !deleteErr.message.includes('no rows')) {
+      console.warn(`[setup] Warning removing global product assignment: ${deleteErr.message}`)
+    }
   }
 
   // ── 4. Clean up test orders from previous runs ───────────────────────────────
