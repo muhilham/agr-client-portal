@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.3.0](https://github.com/muhilham/agr-client-portal/compare/v0.2.0...v0.3.0) (2026-05-05)
+
+
+### Features
+
+* **config:** add SOPS + Age encrypted env management ([73013ab](https://github.com/muhilham/agr-client-portal/commit/73013ab27ae9cf2b87ba27c28f4bfa99cff1114c))
+* **config:** add SOPS env sync to deploy workflows ([8cf61e0](https://github.com/muhilham/agr-client-portal/commit/8cf61e074d64444e0e7edd32fa53294ae6ff4a4b))
+* **env:** add script to clean git-managed envs from Railway ([bd30aa9](https://github.com/muhilham/agr-client-portal/commit/bd30aa97cbd29d3aea5bfbb75347251c61c563b6))
+* **env:** add sync-env.mjs script to sync SOPS-encrypted env files to Railway ([0371b2e](https://github.com/muhilham/agr-client-portal/commit/0371b2ea980cdbb770dee2755d59b41fa85ca194))
+
+
+### Bug Fixes
+
+* apply PR review feedback ([71d2b32](https://github.com/muhilham/agr-client-portal/commit/71d2b32069492574f931f7ecb4cfbcbd74fdb3cd))
+
+
+### Documentation
+
+* add environment variables management guide ([37e8473](https://github.com/muhilham/agr-client-portal/commit/37e8473155c88d1b02039d63824cdc8274c6a065))
+
 ## [0.2.0](https://github.com/muhilham/agr-client-portal/compare/v0.1.0...v0.2.0) (2026-05-05)
 
 
