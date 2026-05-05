@@ -35,6 +35,8 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# Allow encrypted SOPS env files to be committed
+!.sops.env.*
 
 # vercel
 .vercel
@@ -52,3 +54,10 @@ next-env.d.ts
 # Personal AI assistant configuration
 opencode.json
 .superpowers/
+
+# SOPS / Age encryption
+*.key
+keys.txt
+.env.decrypted
+.env.tmp
+.sops.env.*.decrypted

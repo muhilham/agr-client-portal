@@ -1,39 +1,19 @@
-name: deploy-prod
+name: deploy-staging
 
 on:
   push:
-    tags:
-      - 'v*.*.*'
+    branches:
+      - develop
   workflow_dispatch:
-    inputs:
-      ref:
-        description: 'Tag to deploy (e.g. v1.0.0). Used for rollback re-deploys.'
-        required: true
-        type: string
 
 jobs:
-  validate-tag:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Validate tag format
-        run: |
-          REF="${{ github.event.inputs.ref || github.ref_name }}"
-          if [[ ! "$REF" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Invalid tag format: $REF (must match v[0-9]+.[0-9]+.[0-9]+)"
-            exit 1
-          fi
-          echo "Tag format valid: $REF"
-
   deploy:
-    needs: validate-tag
     runs-on: ubuntu-latest
-    environment: production
+    environment: staging
     timeout-minutes: 15
     steps:
-      - name: Checkout tag
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.inputs.ref || github.ref }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -59,14 +39,14 @@ jobs:
       - name: Verify sops and age
         run: sops --version && age --version
 
-      - name: Decrypt & sync production envs
+      - name: Decrypt & sync staging envs
         run: |
           export SOPS_AGE_KEY="${{ secrets.SOPS_AGE_KEY }}"
-          node scripts/sync-env.mjs --env production
+          node scripts/sync-env.mjs --env staging
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
 
-      - name: Deploy to production
-        run: railway up --service agr-client-portal --environment production
+      - name: Deploy to staging
+        run: railway up --service agr-client-portal --environment staging
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
