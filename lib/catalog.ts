@@ -10,6 +10,7 @@ export type CatalogProduct = {
   effectivePrice: number
   minQty: number
   isGlobal: boolean
+  isClientAssigned: boolean
   shipWeightGrams: number
 }
 
@@ -67,6 +68,7 @@ export async function getCatalogForClient(clientId: string): Promise<CatalogProd
       effectivePrice: Number(p.base_price),
       minQty: 1,
       isGlobal: true,
+      isClientAssigned: false,
       shipWeightGrams: Number(p.ship_weight_grams),
     })
   }
@@ -85,6 +87,7 @@ export async function getCatalogForClient(clientId: string): Promise<CatalogProd
       effectivePrice: cp.custom_price != null ? Number(cp.custom_price) : Number(p.base_price),
       minQty: cp.min_qty ?? 1,
       isGlobal: p.is_global,
+      isClientAssigned: true,
       shipWeightGrams: Number(p.ship_weight_grams),
     })
   }
