@@ -51,3 +51,4 @@ next-env.d.ts
 # opencode
 # Personal AI assistant configuration
 opencode.json
+.superpowers/
