@@ -1,5 +1,37 @@
 # Changelog
 
+## [0.4.0](https://github.com/muhilham/agr-client-portal/compare/v0.3.0...v0.4.0) (2026-05-07)
+
+
+### Features
+
+* **portal:** add download invoice button to order detail page ([ac8d70d](https://github.com/muhilham/agr-client-portal/commit/ac8d70d81997fd620f73b4d0d44dfc2713716eaa))
+* **portal:** add DownloadInvoiceButton client component ([dbb8a70](https://github.com/muhilham/agr-client-portal/commit/dbb8a709ce1821d36a5395b77194d32f226d3e55))
+* **portal:** add invoice PDF generation API route ([c5bde5a](https://github.com/muhilham/agr-client-portal/commit/c5bde5a21cdecfa99fdd4d84baa2c27759eb6f86))
+* **portal:** add InvoiceDocument PDF component ([a08ca5f](https://github.com/muhilham/agr-client-portal/commit/a08ca5fc122acab1acee03e6a572ddeb538e1abc))
+
+
+### Bug Fixes
+
+* **api:** extract PDF render to .tsx helper to fix TypeScript build error ([85aa2dd](https://github.com/muhilham/agr-client-portal/commit/85aa2dd9733e4267c7a6f5995e3b1c2f23b6f352))
+* **api:** rename invoice route from .tsx to .ts for Next.js App Router compatibility ([c0954ce](https://github.com/muhilham/agr-client-portal/commit/c0954ce18e350374698d14f1f4ad800e4c79aba6))
+* **env:** use correct staging SUPABASE_SERVICE_ROLE_KEY ([9d98d7a](https://github.com/muhilham/agr-client-portal/commit/9d98d7a4e8d8fc5bca0cda6c9fa74f7fb98c1bb8))
+* **env:** use correct staging SUPABASE_SERVICE_ROLE_KEY ([7f7232d](https://github.com/muhilham/agr-client-portal/commit/7f7232d7d715c09a302dd5ac9c5d36817dde0d80))
+* **logo:** agroastery svg ([79e0b4b](https://github.com/muhilham/agr-client-portal/commit/79e0b4b586c65d178b37ddb0f8ec25402d71ba73))
+* **portal:** address PR review warnings — error feedback, null guards ([9c7a0c4](https://github.com/muhilham/agr-client-portal/commit/9c7a0c4a6dddd51c91e39ab8a3bb6b7ad39f95a2))
+* **portal:** fix invoice download by querying addresses via admin client ([e016b6a](https://github.com/muhilham/agr-client-portal/commit/e016b6a7402f699cd8d36ea5edbe37ae104ec6d0))
+
+
+### Tests
+
+* **portal:** add failing E2E tests for invoice download ([37d8ad1](https://github.com/muhilham/agr-client-portal/commit/37d8ad1328a9ae473cbb625776d082c0cb688e78))
+
+
+### Documentation
+
+* **config:** add invoice download feature design spec ([2ce4463](https://github.com/muhilham/agr-client-portal/commit/2ce44631bdbb46d12938b2d0fbee7841bc2e53c2))
+* **config:** add invoice download implementation plan ([0c84fa1](https://github.com/muhilham/agr-client-portal/commit/0c84fa19d2fb624023461d5daa9ad797420fd446))
+
 ## [0.3.0](https://github.com/muhilham/agr-client-portal/compare/v0.2.0...v0.3.0) (2026-05-05)
 
 
