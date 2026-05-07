@@ -50,11 +50,22 @@ export async function GET(
     is_default: boolean
   }
 
-  const addresses = client.addresses as AddressRow[]
+  const addresses = (client.addresses as AddressRow[] | null) ?? []
   const address = addresses.find((a) => a.is_default) ?? addresses[0]
 
   if (!address) {
     return NextResponse.json({ error: 'Address not found' }, { status: 404 })
+  }
+
+  const items = (order.order_items as Array<{
+    product_name: string
+    unit_price: number
+    quantity: number
+    subtotal: number
+  }> | null) ?? []
+
+  if (items.length === 0) {
+    return NextResponse.json({ error: 'No items' }, { status: 422 })
   }
 
   const data: InvoiceData = {
@@ -63,12 +74,7 @@ export async function GET(
     recipientName: address.recipient_name,
     addressLine: address.address_line,
     postalCode: address.postal_code,
-    items: (order.order_items as Array<{
-      product_name: string
-      unit_price: number
-      quantity: number
-      subtotal: number
-    }>).map((item) => ({
+    items: items.map((item) => ({
       productName: item.product_name,
       unitPrice: item.unit_price,
       quantity: item.quantity,
