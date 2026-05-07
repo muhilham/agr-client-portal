@@ -3,6 +3,7 @@ import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import { FulfillmentBadge } from '@/components/FulfillmentBadge'
 import { PaymentBadge } from '@/components/PaymentBadge'
+import { DownloadInvoiceButton } from './_components/DownloadInvoiceButton'
 
 export const dynamic = 'force-dynamic'
 
@@ -172,6 +173,7 @@ export default async function OrderDetailPage({ params }: Props) {
           >
             Buat Pesanan Baru
           </Link>
+          <DownloadInvoiceButton orderId={order.id} orderNumber={order.order_number} />
           <Link
             href="/portal/orders"
             data-testid="back-to-orders-button"
