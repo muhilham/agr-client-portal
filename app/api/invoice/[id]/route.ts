@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { getSupabaseAdmin } from '@/lib/supabase/admin'
 import { type InvoiceData } from '@/lib/invoice/document'
 import { renderInvoicePDF } from '@/lib/invoice/render'
 
@@ -32,9 +33,7 @@ export async function GET(
 
   const { data: client } = await supabase
     .from('clients')
-    .select(
-      'name, addresses (recipient_name, address_line, postal_code, is_default)'
-    )
+    .select('id, name')
     .eq('email', user.email)
     .single()
 
@@ -42,15 +41,14 @@ export async function GET(
     return NextResponse.json({ error: 'Client not found' }, { status: 404 })
   }
 
-  type AddressRow = {
-    recipient_name: string
-    address_line: string
-    postal_code: string
-    is_default: boolean
-  }
+  const admin = getSupabaseAdmin()
+  const { data: addresses } = await admin
+    .from('addresses')
+    .select('recipient_name, address_line, postal_code, is_default')
+    .eq('client_id', client.id)
 
-  const addresses = (client.addresses as AddressRow[] | null) ?? []
-  const address = addresses.find((a) => a.is_default) ?? addresses[0]
+  const address =
+    (addresses ?? []).find((a) => a.is_default) ?? (addresses ?? [])[0]
 
   if (!address) {
     return NextResponse.json({ error: 'Address not found' }, { status: 404 })
