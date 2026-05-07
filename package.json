@@ -12,6 +12,7 @@
     "test:e2e:debug": "dotenv -e .env.e2e -- playwright test --debug"
   },
   "dependencies": {
+    "@react-pdf/renderer": "^4.5.1",
     "@supabase/ssr": "^0.9.0",
     "@supabase/supabase-js": "^2.99.2",
     "next": "16.1.6",
