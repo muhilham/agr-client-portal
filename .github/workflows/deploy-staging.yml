@@ -3,7 +3,7 @@ name: deploy-staging
 on:
   push:
     branches:
-      - develop
+      - main
   workflow_dispatch:
 
 jobs:
@@ -44,9 +44,9 @@ jobs:
           export SOPS_AGE_KEY="${{ secrets.SOPS_AGE_KEY }}"
           node scripts/sync-env.mjs --env staging
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_STG }}
 
       - name: Deploy to staging
         run: railway up --service agr-client-portal --environment staging
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_STG }}
