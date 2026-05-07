@@ -85,7 +85,7 @@ export async function GET(
     generatedAt: new Date(),
   }
 
-  const buffer = await renderToBuffer(<InvoiceDocument data={data} />)
+  const buffer = await renderToBuffer(React.createElement(InvoiceDocument, { data }))
 
   return new NextResponse(new Uint8Array(buffer), {
     status: 200,
