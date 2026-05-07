@@ -9,8 +9,7 @@ const AGROASTERY = {
   bankAccountName: 'MUHAMMAD ILHAM',
   bcaAccount: '0657237047',
   mandiriAccount: '1270009924133',
-  logoUrl:
-    'https://github.com/user-attachments/assets/79b22a6a-f341-40f6-ac74-27c6af123b7e',
+  logoUrl: 'https://agroastery.com/assets/agroastery-logo.svg',
 }
 
 export type InvoiceData = {
