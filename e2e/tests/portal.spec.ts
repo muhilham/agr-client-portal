@@ -397,3 +397,40 @@ test.describe('Order detail (CP-05b)', () => {
     ).toMatch(/not found|tidak ditemukan|404/)
   })
 })
+
+test.describe('Invoice download (CP-06)', () => {
+  test('download invoice button visible on order detail page', async ({ page }) => {
+    test.skip(!createdOrderId, 'No test order created — run full suite')
+
+    await page.goto(`/portal/orders/${createdOrderId}`)
+
+    const button = page.getByTestId('download-invoice-button')
+    await expect(button).toBeVisible()
+    await expect(button).toContainText('Download Invoice')
+    await expect(button).toBeEnabled()
+  })
+
+  test('clicking download invoice button triggers PDF download', async ({ page }) => {
+    test.skip(!createdOrderId, 'No test order created — run full suite')
+
+    await page.goto(`/portal/orders/${createdOrderId}`)
+
+    const downloadPromise = page.waitForEvent('download')
+    await page.getByTestId('download-invoice-button').click()
+    const download = await downloadPromise
+
+    expect(download.suggestedFilename()).toMatch(/^INV-.*\.pdf$/)
+    expect(download.suggestedFilename()).toContain(createdOrderNumber)
+  })
+
+  test.describe('unauthenticated', () => {
+    test.use({ storageState: { cookies: [], origins: [] } })
+
+    test('invoice API returns 401 without session', async ({ request }) => {
+      const response = await request.get(
+        '/api/invoice/00000000-0000-0000-0000-000000000000'
+      )
+      expect(response.status()).toBe(401)
+    })
+  })
+})
