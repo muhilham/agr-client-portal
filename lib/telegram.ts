@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { PICKUP_COURIER_CODE } from '@/lib/shipping'
 
 type NotificationItem = {
   name: string
@@ -58,7 +59,11 @@ export async function sendOrderNotification(payload: OrderNotificationPayload): 
     ]
 
     if (shippingCost != null) {
-      lines.push(`🚚 <b>Ongkir: ${formatIDR(shippingCost)}</b> ${shippingCourier && shippingService ? `(${escapeHtml(shippingCourier)} — ${escapeHtml(shippingService)})` : ''}`)
+      if (shippingCourier === PICKUP_COURIER_CODE) {
+        lines.push(`📦 <b>Ambil Sendiri</b>`)
+      } else {
+        lines.push(`🚚 <b>Ongkir: ${formatIDR(shippingCost)}</b> ${shippingCourier && shippingService ? `(${escapeHtml(shippingCourier)} — ${escapeHtml(shippingService)})` : ''}`)
+      }
       lines.push(``)
       lines.push(`💰 <b>Total: ${formatIDR(totalAmount + shippingCost)}</b>`)
     } else {
