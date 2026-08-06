@@ -41,7 +41,7 @@ Every downstream check (order detail page, invoice route, Telegram notification)
 
 | Component | File | Responsibility |
 |---|---|---|
-| `validateCartItems()` | `lib/shipping.ts` | Extracted from `loadShippingContext` — catalog/qty validation only, no address or Biteship call. Used by both fulfillment paths. |
+| `validateCartItems()` | `lib/shipping.ts` | Extracted from `loadShippingContext` — catalog/qty validation, no address or Biteship call. Uses `getSupabaseAdmin()` (via `getCatalogForClient`, already service-role) to fetch authoritative `effectivePrice` per product and recompute `subtotal`/`totalAmount` server-side — **never trusts client-submitted prices**, matching existing `loadShippingContext` behavior (project rule: prices re-validated server-side on every order submission). Used by both fulfillment paths. |
 | `getPickupLocation()` | `lib/shipping.ts` | Wraps existing `getBiteshipLocation(BITESHIP_ORIGIN_LOCATION_ID)`. Returns `{ name, address, postal_code, contact_phone } \| null`. No new env var. |
 | `getPickupInfo()` action | `app/portal/order/_actions/getPickupInfo.ts` (new) | Validates cart via `validateCartItems`, fetches pickup location. Returns `{ ok: true; location } \| { ok: false; error: 'INVALID_CART' \| 'ORIGIN_NOT_CONFIGURED' }`. |
 | `PickupInfoCard` | `app/portal/order/review/_components/PickupInfoCard.tsx` (new) | Static display of pickup location name/address/phone. Mirrors `AddressCard` styling. |
@@ -52,7 +52,7 @@ Every downstream check (order detail page, invoice route, Telegram notification)
 ### Schema (`lib/schemas/order.ts`)
 
 ```ts
-export const fulfillmentMethodSchema = z.enum(['SHIPPING', 'PICKUP'])
+export const fulfillmentMethodSchema = z.enum(['SHIPPING', 'PICKUP']).default('SHIPPING')
 
 export const createOrderInputSchema = z.object({
   items: z.array(orderItemInputSchema).min(1).max(100),
@@ -85,9 +85,10 @@ export const createOrderInputSchema = z.object({
 **Invoice route (`app/api/invoice/[id]/route.ts`):**
 - Select `shipping_courier` alongside existing columns.
 - Address lookup (`addresses` table query, lines 44-55) only enforced when `!isPickupOrder(order)`. When pickup and no address exists, `InvoiceData.recipientName`/`addressLine`/`postalCode` become optional/omitted; `lib/invoice/document.tsx` renders a "Ambil Sendiri di [warehouse]" line instead of the address block. This closes a real bug: today, any client with zero saved addresses gets a hard 404 on invoice download, and pickup makes zero-address clients possible for the first time.
+- `InvoiceData` type (`lib/invoice/document.tsx`) must mark `recipientName`, `addressLine`, `postalCode` as optional (`?:`) so the pickup branch is type-checked, not just runtime-omitted.
 
 **Telegram (`lib/telegram.ts`):**
-- `sendOrderNotification` payload gains `shippingCourier` already carries the sentinel; no new field needed. Message construction branches: when `shippingCourier === PICKUP_COURIER_CODE`, render "📦 Ambil Sendiri" instead of "🚚 Ongkir: ..." line, skip the courier/service parenthetical.
+- `sendOrderNotification` payload's `shippingCourier` already carries the sentinel; no new field needed. Message construction branches: when `shippingCourier === PICKUP_COURIER_CODE`, render "📦 Ambil Sendiri" instead of "🚚 Ongkir: ..." line, skip the courier/service parenthetical. `orderId` is already passed through from `createOrder.ts` (`order.id`, line 120) for both fulfillment paths — the pickup branch must not drop it, since it's required for `notification_logs` insert.
 
 ### Pickup location
 
@@ -114,7 +115,7 @@ None. Order is flagged pickup; admin coordinates timing via existing Telegram no
 
 - E2E (`e2e/tests/shipping.spec.ts`): add pickup flow — toggle to "Ambil Sendiri", submit without touching address, assert order created with `shipping_courier = 'pickup'`.
 - E2E: order detail page shows pickup block, not courier/ETD block.
-- E2E: invoice download succeeds for a pickup order with zero saved addresses.
+- E2E: invoice download succeeds for a pickup order with zero saved addresses. Test must explicitly delete/clean any seeded addresses for the test client before order submission — otherwise the seed helper's default address (see `e2e seed helper inserts default address for test client`) makes this scenario impossible to actually exercise, and the test would pass without covering the zero-address path.
 - Existing SHIPPING-path tests unchanged — `fulfillmentMethod` defaults through the toggle's default state, no regression expected.
 
 ## Out of Scope
