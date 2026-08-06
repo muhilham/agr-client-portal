@@ -5,7 +5,7 @@ import { mkdtemp, writeFile, unlink, rmdir, readFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
-const ALLOWED_ENVS = ['production', 'staging'];
+const ALLOWED_ENVS = ['production'];
 
 function parseArgs() {
   const args = process.argv.slice(2);
@@ -14,7 +14,7 @@ function parseArgs() {
   const dryRun = args.includes('--dry-run');
 
   if (!env || !ALLOWED_ENVS.includes(env)) {
-    console.error('Usage: node scripts/sync-env.mjs --env <production|staging> [--dry-run]');
+    console.error('Usage: node scripts/sync-env.mjs --env production [--dry-run]');
     process.exit(1);
   }
 

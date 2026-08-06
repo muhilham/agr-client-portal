@@ -16,7 +16,7 @@ import { mkdtemp, writeFile, unlink, rmdir, readFile } from 'fs/promises';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
-const ALLOWED_ENVS = ['production', 'staging'];
+const ALLOWED_ENVS = ['production'];
 
 // Railway auto-generated envs that must NEVER be deleted
 const RAILWAY_PREFIXES = [
@@ -30,7 +30,7 @@ function parseArgs() {
   const dryRun = args.includes('--dry-run');
 
   if (!env || !ALLOWED_ENVS.includes(env)) {
-    console.error('Usage: node scripts/clean-railway-envs.mjs --env <production|staging> [--dry-run]');
+    console.error('Usage: node scripts/clean-railway-envs.mjs --env production [--dry-run]');
     process.exit(1);
   }
 
