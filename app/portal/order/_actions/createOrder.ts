@@ -3,7 +3,14 @@
 import { createClient } from '@/lib/supabase/server'
 import { getSupabaseAdmin } from '@/lib/supabase/admin'
 import { createOrderInputSchema } from '@/lib/schemas/order'
-import { loadShippingContext, findRateMatch } from '@/lib/shipping'
+import {
+  loadShippingContext,
+  findRateMatch,
+  validateCartItems,
+  getPickupLocation,
+  PICKUP_COURIER_CODE,
+  type ValidatedItem,
+} from '@/lib/shipping'
 import { sendOrderNotification } from '@/lib/telegram'
 
 export type CreateOrderResult =
@@ -37,29 +44,68 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
     throw new Error('Client not found')
   }
 
-  const ctx = await loadShippingContext(client.id, parsed.data.items)
+  let orderItems: ValidatedItem[]
+  let dbShippingCost: number
+  let dbShippingCourier: string | null
+  let dbShippingService: string | null
+  let dbShippingEtd: string | null
+  let notifShippingCourier: string | undefined
+  let notifShippingService: string | undefined
 
-  if (!ctx.ok) {
-    const messages: Record<string, string> = {
-      NO_ADDRESS: 'Alamat pengiriman tidak ditemukan',
-      INVALID_CART: 'Isi keranjang tidak valid, silakan kembali ke katalog',
-      ORIGIN_NOT_CONFIGURED: 'Pengiriman tidak tersedia, hubungi admin',
-      RATES_UNAVAILABLE: 'Pengiriman tidak dapat dihitung',
+  if (parsed.data.fulfillmentMethod === 'PICKUP') {
+    const itemsResult = await validateCartItems(client.id, parsed.data.items)
+    if (!itemsResult.ok) {
+      return { ok: false, error: 'Isi keranjang tidak valid, silakan kembali ke katalog' }
     }
-    return { ok: false, error: messages[ctx.error] ?? 'Terjadi kesalahan' }
+    const location = await getPickupLocation()
+    if (!location) {
+      return { ok: false, error: 'Pengiriman tidak tersedia, hubungi admin' }
+    }
+
+    orderItems = itemsResult.validatedItems
+    dbShippingCost = 0
+    dbShippingCourier = PICKUP_COURIER_CODE
+    dbShippingService = null
+    dbShippingEtd = null
+    notifShippingCourier = PICKUP_COURIER_CODE
+    notifShippingService = undefined
+  } else {
+    const ctx = await loadShippingContext(client.id, parsed.data.items)
+
+    if (!ctx.ok) {
+      const messages: Record<string, string> = {
+        NO_ADDRESS: 'Alamat pengiriman tidak ditemukan',
+        INVALID_CART: 'Isi keranjang tidak valid, silakan kembali ke katalog',
+        ORIGIN_NOT_CONFIGURED: 'Pengiriman tidak tersedia, hubungi admin',
+        RATES_UNAVAILABLE: 'Pengiriman tidak dapat dihitung',
+      }
+      return { ok: false, error: messages[ctx.error] ?? 'Terjadi kesalahan' }
+    }
+
+    if (!parsed.data.shippingSelection) {
+      return { ok: false, error: 'Metode pengiriman tidak dipilih' }
+    }
+
+    const match = findRateMatch(
+      ctx.rates,
+      parsed.data.shippingSelection.courier_code,
+      parsed.data.shippingSelection.service_code
+    )
+
+    if (!match) {
+      return { ok: false, error: 'Kurir tidak lagi tersedia, silakan pilih ulang' }
+    }
+
+    orderItems = ctx.validatedItems
+    dbShippingCost = match.price
+    dbShippingCourier = match.courier_code
+    dbShippingService = match.courier_service_code
+    dbShippingEtd = match.duration
+    notifShippingCourier = match.courier_name
+    notifShippingService = match.courier_service_name
   }
 
-  const match = findRateMatch(
-    ctx.rates,
-    parsed.data.shippingSelection.courier_code,
-    parsed.data.shippingSelection.service_code
-  )
-
-  if (!match) {
-    return { ok: false, error: 'Kurir tidak lagi tersedia, silakan pilih ulang' }
-  }
-
-  const totalAmount = ctx.validatedItems.reduce((sum, i) => sum + i.subtotal, 0)
+  const totalAmount = orderItems.reduce((sum, i) => sum + i.subtotal, 0)
 
   let orderNumber: string
   try {
@@ -83,10 +129,10 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
         payment_status: 'UNPAID',
         notes: parsed.data.notes?.slice(0, 500) ?? null,
         total_amount: totalAmount,
-        shipping_cost: match.price,
-        shipping_courier: match.courier_code,
-        shipping_service: match.courier_service_code,
-        shipping_etd: match.duration,
+        shipping_cost: dbShippingCost,
+        shipping_courier: dbShippingCourier,
+        shipping_service: dbShippingService,
+        shipping_etd: dbShippingEtd,
       })
       .select('id, order_number')
       .single()
@@ -100,7 +146,7 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
 
   try {
     const { error } = await supabase.from('order_items').insert(
-      ctx.validatedItems.map((i) => ({
+      orderItems.map((i) => ({
         order_id: order.id,
         product_id: i.productId,
         product_name: i.productName,
@@ -120,15 +166,15 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
       orderId: order.id,
       orderNumber: order.order_number,
       clientName: client.name,
-      items: ctx.validatedItems.map((i) => ({
+      items: orderItems.map((i) => ({
         name: i.productName,
         quantity: i.quantity,
         unitPrice: i.unitPrice,
       })),
       totalAmount,
-      shippingCost: match.price,
-      shippingCourier: match.courier_name,
-      shippingService: match.courier_service_name,
+      shippingCost: dbShippingCost,
+      shippingCourier: notifShippingCourier,
+      shippingService: notifShippingService,
       createdAt: new Date(),
     })
   } catch (err) {
