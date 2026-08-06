@@ -14,11 +14,19 @@ export const getShippingRatesInputSchema = z.object({
   items: z.array(orderItemInputSchema).min(1).max(100),
 })
 
-export const createOrderInputSchema = z.object({
-  items: z.array(orderItemInputSchema).min(1).max(100),
-  notes: z.string().max(500).optional(),
-  shippingSelection: shippingSelectionSchema,
-})
+export const fulfillmentMethodSchema = z.enum(['SHIPPING', 'PICKUP']).default('SHIPPING')
+
+export const createOrderInputSchema = z
+  .object({
+    items: z.array(orderItemInputSchema).min(1).max(100),
+    notes: z.string().max(500).optional(),
+    fulfillmentMethod: fulfillmentMethodSchema,
+    shippingSelection: shippingSelectionSchema.optional(),
+  })
+  .refine(
+    (data) => data.fulfillmentMethod === 'PICKUP' || data.shippingSelection != null,
+    { message: 'shippingSelection is required for SHIPPING orders', path: ['shippingSelection'] }
+  )
 
 export type GetShippingRatesInput = z.infer<typeof getShippingRatesInputSchema>
 export type CreateOrderInput = z.infer<typeof createOrderInputSchema>

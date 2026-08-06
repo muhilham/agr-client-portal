@@ -10,6 +10,12 @@ import {
 
 const DEFAULT_COURIERS = 'jne,tiki,sicepat,anteraja,jnt,ninja'
 
+export const PICKUP_COURIER_CODE = 'pickup'
+
+export function isPickupOrder(order: { shipping_courier: string | null }): boolean {
+  return order.shipping_courier === PICKUP_COURIER_CODE
+}
+
 export interface AddressDisplay {
   recipient_name: string
   address_line: string
@@ -33,6 +39,63 @@ export interface ValidatedItem {
   quantity: number
   subtotal: number
   shipWeightGrams: number
+}
+
+export interface PickupLocation {
+  name: string
+  address: string
+  postal_code: string
+  contact_phone: string | null
+}
+
+export type CartValidationResult =
+  | { ok: true; validatedItems: ValidatedItem[] }
+  | { ok: false; error: 'INVALID_CART' }
+
+export async function validateCartItems(
+  clientId: string,
+  items: { productId: string; quantity: number }[]
+): Promise<CartValidationResult> {
+  const catalog = await getCatalogForClient(clientId)
+  const catalogMap = new Map(catalog.map((p) => [p.id, p]))
+
+  const validatedItems: ValidatedItem[] = []
+
+  for (const item of items) {
+    const product = catalogMap.get(item.productId)
+    if (!product) {
+      return { ok: false, error: 'INVALID_CART' }
+    }
+    if (item.quantity < product.minQty) {
+      return { ok: false, error: 'INVALID_CART' }
+    }
+    validatedItems.push({
+      productId: product.id,
+      productName: product.name,
+      unit: product.unit,
+      unitPrice: product.effectivePrice,
+      quantity: item.quantity,
+      subtotal: product.effectivePrice * item.quantity,
+      shipWeightGrams: product.shipWeightGrams,
+    })
+  }
+
+  return { ok: true, validatedItems }
+}
+
+export async function getPickupLocation(): Promise<PickupLocation | null> {
+  const originLocationId = process.env.BITESHIP_ORIGIN_LOCATION_ID
+  if (!originLocationId) return null
+
+  const origin = await getBiteshipLocation(originLocationId)
+  if (!origin) return null
+
+  return {
+    name: origin.name,
+    address: origin.address,
+    postal_code: origin.postal_code,
+    contact_phone: origin.contact_phone || null,
+  }
 }
 
 export type ShippingContext =
@@ -81,30 +144,12 @@ export async function loadShippingContext(
     postal_code: addressRow.postal_code,
   }
 
-  // 2. Products
-  const catalog = await getCatalogForClient(clientId)
-  const catalogMap = new Map(catalog.map((p) => [p.id, p]))
-
-  const validatedItems: ValidatedItem[] = []
-
-  for (const item of items) {
-    const product = catalogMap.get(item.productId)
-    if (!product) {
-      return { ok: false, error: 'INVALID_CART' }
-    }
-    if (item.quantity < product.minQty) {
-      return { ok: false, error: 'INVALID_CART' }
-    }
-    validatedItems.push({
-      productId: product.id,
-      productName: product.name,
-      unit: product.unit,
-      unitPrice: product.effectivePrice,
-      quantity: item.quantity,
-      subtotal: product.effectivePrice * item.quantity,
-      shipWeightGrams: product.shipWeightGrams,
-    })
+  // 2. Items
+  const itemsResult = await validateCartItems(clientId, items)
+  if (!itemsResult.ok) {
+    return { ok: false, error: itemsResult.error }
   }
+  const validatedItems = itemsResult.validatedItems
 
   // 3. Origin
   const originLocationId = process.env.BITESHIP_ORIGIN_LOCATION_ID
