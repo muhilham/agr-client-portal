@@ -11,7 +11,6 @@ Environment variables are stored as encrypted files in the repository:
 | File | Environment | Purpose |
 |---|---|---|
 | `.sops.env.production` | Production | All production secrets |
-| `.sops.env.staging` | Staging | All staging secrets |
 | `.sops.yaml` | — | SOPS configuration (Age public key) |
 
 **Git is the single source of truth.** On every deploy, GitHub Actions decrypts these files and syncs the values to Railway. Railway is a runtime mirror — it should not be edited directly.
@@ -45,11 +44,7 @@ export SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt
 ### View decrypted values (stdout)
 
 ```bash
-# Production
 sops -d .sops.env.production
-
-# Staging
-sops -d .sops.env.staging
 ```
 
 ### View specific key
@@ -73,11 +68,7 @@ This opens the decrypted file in your `$EDITOR`. Save and exit — SOPS automati
 ### Change a specific key inline (no editor)
 
 ```bash
-# Production
 sops --set '["BITESHIP_API_KEY"] "biteship_live.eyJ..."' .sops.env.production
-
-# Staging
-sops --set '["NEXT_PUBLIC_SITE_URL"] "https://new-stg.example.com"' .sops.env.staging
 ```
 
 > ⚠️ **After editing, commit and push.** The next deploy will sync the new values to Railway.
@@ -163,7 +154,7 @@ SOPS_AGE_KEY_FILE=~/.config/sops/age/keys.txt node scripts/sync-env.mjs --env pr
 
 ## How Deploy Sync Works
 
-Both `deploy-prod.yml` and `deploy-staging.yml` follow this flow:
+`deploy-prod.yml` follows this flow:
 
 1. **Install** `sops` and `age` binaries
 2. **Decrypt** `.sops.env.<env>` using `SOPS_AGE_KEY` GitHub secret
@@ -239,7 +230,6 @@ export RAILWAY_TOKEN=xxx
 3. Re-encrypt all env files with the new key:
    ```bash
    sops rotate -i .sops.env.production
-   sops rotate -i .sops.env.staging
    ```
 
 4. Update `SOPS_AGE_KEY` GitHub secret with new private key
