@@ -497,7 +497,10 @@ test.describe('Self-pickup invoice with zero addresses (CP-07)', () => {
     if (backedUpAddresses.length === 0) return
     const supabase = adminSupabase()
     await supabase.from('addresses').insert(
-      backedUpAddresses.map(({ id: _id, ...rest }) => rest)
+      backedUpAddresses.map((addr) => {
+        const { id: _id, ...rest } = addr
+        return rest
+      })
     )
   })
 

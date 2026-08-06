@@ -83,7 +83,7 @@ async function loadPickupInfo(
 
 export default function OrderReviewPage() {
   const router = useRouter()
-  const [cart, setCart] = useState<CartItem[]>(() => {
+  const [cart] = useState<CartItem[]>(() => {
     if (typeof window === 'undefined') return []
     const stored = sessionStorage.getItem('cart')
     if (!stored) return []
