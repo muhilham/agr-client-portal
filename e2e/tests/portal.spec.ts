@@ -285,6 +285,47 @@ test.describe('Order review → submission (CP-03 → CP-04)', () => {
   })
 })
 
+test.describe('Self-pickup order (CP-04b)', () => {
+  let pickupOrderId: string | null = null
+
+  test('submitting a pickup order redirects to confirmation without selecting a courier', async ({
+    page,
+  }) => {
+    await mockBiteshipLocation(page)
+
+    await page.goto('/portal')
+
+    const productId = await getFirstProductId(page)
+    await page.getByTestId(`qty-increment-${productId}`).click()
+    await page.getByTestId('review-order-button').click()
+
+    await page.getByTestId('fulfillment-option-pickup').click()
+
+    const pickupCard = page.getByTestId('pickup-info-card')
+    await expect(pickupCard).toBeVisible()
+    await expect(page.getByTestId('shipping-cost')).toContainText('Gratis')
+
+    await page.getByTestId('confirm-order-button').click()
+
+    await expect(page).toHaveURL(/\/portal\/order\/confirmation/, { timeout: 15_000 })
+
+    const url = page.url()
+    pickupOrderId = new URL(url).searchParams.get('id')
+  })
+
+  test('pickup order detail page shows pickup section instead of courier info', async ({
+    page,
+  }) => {
+    test.skip(!pickupOrderId, 'No pickup order created — run previous test first')
+
+    await page.goto(`/portal/orders/${pickupOrderId}`)
+
+    await expect(page.getByTestId('order-pickup-section')).toBeVisible()
+    await expect(page.getByTestId('order-pickup-note')).toContainText('Ambil Sendiri')
+    await expect(page.locator('[data-testid="order-shipping-section"]')).toHaveCount(0)
+  })
+})
+
 test.describe('Order history (CP-05)', () => {
   test.beforeAll(async () => {
     // Ensure we have an order to view — wait for the submission test to run first
@@ -432,5 +473,57 @@ test.describe('Invoice download (CP-06)', () => {
       )
       expect(response.status()).toBe(401)
     })
+  })
+})
+
+test.describe('Self-pickup invoice with zero addresses (CP-07)', () => {
+  test.describe.configure({ mode: 'serial' })
+
+  let backedUpAddresses: Record<string, unknown>[] = []
+
+  test.beforeAll(async () => {
+    const { clientId } = getTestIds()
+    const supabase = adminSupabase()
+
+    const { data } = await supabase.from('addresses').select('*').eq('client_id', clientId)
+    backedUpAddresses = data ?? []
+
+    if (backedUpAddresses.length > 0) {
+      await supabase.from('addresses').delete().eq('client_id', clientId)
+    }
+  })
+
+  test.afterAll(async () => {
+    if (backedUpAddresses.length === 0) return
+    const supabase = adminSupabase()
+    await supabase.from('addresses').insert(
+      backedUpAddresses.map(({ id: _id, ...rest }) => rest)
+    )
+  })
+
+  test('pickup order + invoice download succeed with zero saved addresses', async ({ page }) => {
+    await mockBiteshipLocation(page)
+
+    await page.goto('/portal')
+
+    const productId = await getFirstProductId(page)
+    await page.getByTestId(`qty-increment-${productId}`).click()
+    await page.getByTestId('review-order-button').click()
+
+    await page.getByTestId('fulfillment-option-pickup').click()
+    await expect(page.getByTestId('pickup-info-card')).toBeVisible()
+
+    await page.getByTestId('confirm-order-button').click()
+    await expect(page).toHaveURL(/\/portal\/order\/confirmation/, { timeout: 15_000 })
+
+    const orderId = new URL(page.url()).searchParams.get('id')
+
+    await page.goto(`/portal/orders/${orderId}`)
+
+    const downloadPromise = page.waitForEvent('download')
+    await page.getByTestId('download-invoice-button').click()
+    const download = await downloadPromise
+
+    expect(download.suggestedFilename()).toMatch(/^INV-.*\.pdf$/)
   })
 })
