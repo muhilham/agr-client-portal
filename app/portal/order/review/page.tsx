@@ -1,19 +1,27 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createOrder } from '../_actions/createOrder'
 import { getShippingRates } from '../_actions/getShippingRates'
+import { getPickupInfo } from '../_actions/getPickupInfo'
 import { CartItem } from '../../_components/CatalogView'
 import AddressCard, { AddressCardEmpty } from './_components/AddressCard'
 import CourierPicker from './_components/CourierPicker'
-import type { RateOption, AddressDisplay } from '@/lib/shipping'
+import FulfillmentToggle, { type FulfillmentMethod } from './_components/FulfillmentToggle'
+import PickupInfoCard from './_components/PickupInfoCard'
+import type { RateOption, AddressDisplay, PickupLocation } from '@/lib/shipping'
 
 type RatesState =
   | { kind: 'loading' }
   | { kind: 'ready'; rates: RateOption[]; address: AddressDisplay }
   | { kind: 'no_address' }
+  | { kind: 'error'; message: string }
+
+type PickupState =
+  | { kind: 'loading' }
+  | { kind: 'ready'; location: PickupLocation }
   | { kind: 'error'; message: string }
 
 function formatIDR(amount: number) {
@@ -23,13 +31,16 @@ function formatIDR(amount: number) {
 async function loadShippingRates(
   items: CartItem[],
   setRatesState: React.Dispatch<React.SetStateAction<RatesState>>,
-  setSelectedRate: React.Dispatch<React.SetStateAction<RateOption | null>>
+  setSelectedRate: React.Dispatch<React.SetStateAction<RateOption | null>>,
+  requestIdRef: React.MutableRefObject<number>,
+  myRequestId: number
 ) {
   setRatesState({ kind: 'loading' })
   setSelectedRate(null)
   const result = await getShippingRates({
     items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
   })
+  if (requestIdRef.current !== myRequestId) return // a newer request superseded this one — ignore
   if (!result.ok) {
     if (result.error === 'NO_ADDRESS') {
       setRatesState({ kind: 'no_address' })
@@ -47,6 +58,29 @@ async function loadShippingRates(
   setRatesState({ kind: 'ready', rates: result.rates, address: result.address })
 }
 
+async function loadPickupInfo(
+  items: CartItem[],
+  setPickupState: React.Dispatch<React.SetStateAction<PickupState>>,
+  requestIdRef: React.MutableRefObject<number>,
+  myRequestId: number
+) {
+  setPickupState({ kind: 'loading' })
+  const result = await getPickupInfo({
+    items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+  })
+  if (requestIdRef.current !== myRequestId) return // a newer request superseded this one — ignore
+  if (!result.ok) {
+    const messages: Record<string, string> = {
+      INVALID_CART: 'Isi keranjang tidak valid, silakan kembali ke katalog',
+      ORIGIN_NOT_CONFIGURED: 'Pengambilan tidak tersedia, hubungi admin',
+      INVALID_INPUT: 'Permintaan tidak valid',
+    }
+    setPickupState({ kind: 'error', message: messages[result.error] ?? 'Terjadi kesalahan' })
+    return
+  }
+  setPickupState({ kind: 'ready', location: result.location })
+}
+
 export default function OrderReviewPage() {
   const router = useRouter()
   const [cart, setCart] = useState<CartItem[]>(() => {
@@ -62,23 +96,32 @@ export default function OrderReviewPage() {
   const [notes, setNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [fulfillmentMethod, setFulfillmentMethod] = useState<FulfillmentMethod>('SHIPPING')
   const [ratesState, setRatesState] = useState<RatesState>({ kind: 'loading' })
   const [selectedRate, setSelectedRate] = useState<RateOption | null>(null)
+  const [pickupState, setPickupState] = useState<PickupState>({ kind: 'loading' })
+  const requestIdRef = useRef(0)
 
   useEffect(() => {
     if (cart.length === 0) {
       router.replace('/portal')
       return
     }
-    loadShippingRates(cart, setRatesState, setSelectedRate)
-  }, [router, cart])
+    const myRequestId = ++requestIdRef.current
+    if (fulfillmentMethod === 'SHIPPING') {
+      loadShippingRates(cart, setRatesState, setSelectedRate, requestIdRef, myRequestId)
+    } else {
+      loadPickupInfo(cart, setPickupState, requestIdRef, myRequestId)
+    }
+  }, [router, cart, fulfillmentMethod])
 
   const subtotal = cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0)
-  const shippingCost = selectedRate?.price ?? 0
+  const shippingCost = fulfillmentMethod === 'PICKUP' ? 0 : (selectedRate?.price ?? 0)
   const grandTotal = subtotal + shippingCost
 
   const handleConfirm = async () => {
-    if (!selectedRate || ratesState.kind !== 'ready') return
+    if (fulfillmentMethod === 'SHIPPING' && (!selectedRate || ratesState.kind !== 'ready')) return
+    if (fulfillmentMethod === 'PICKUP' && pickupState.kind !== 'ready') return
 
     setSubmitting(true)
     setError(null)
@@ -86,16 +129,18 @@ export default function OrderReviewPage() {
     const result = await createOrder({
       items: cart.map((i) => ({ productId: i.productId, quantity: i.quantity })),
       notes: notes.trim() || undefined,
-      shippingSelection: {
-        courier_code: selectedRate.courier_code,
-        service_code: selectedRate.service_code,
-      },
+      fulfillmentMethod,
+      shippingSelection:
+        fulfillmentMethod === 'SHIPPING' && selectedRate
+          ? { courier_code: selectedRate.courier_code, service_code: selectedRate.service_code }
+          : undefined,
     })
 
     if (!result.ok) {
       if (result.error === 'Kurir tidak lagi tersedia, silakan pilih ulang') {
         setRatesState({ kind: 'loading' })
-        loadShippingRates(cart, setRatesState, setSelectedRate)
+        const myRequestId = ++requestIdRef.current
+        loadShippingRates(cart, setRatesState, setSelectedRate, requestIdRef, myRequestId)
       }
       setError(result.error)
       setSubmitting(false)
@@ -108,9 +153,15 @@ export default function OrderReviewPage() {
     )
   }
 
-  const canSubmit = ratesState.kind === 'ready' && selectedRate != null
+  const canSubmit =
+    fulfillmentMethod === 'SHIPPING'
+      ? ratesState.kind === 'ready' && selectedRate != null
+      : pickupState.kind === 'ready'
 
-  if (ratesState.kind === 'loading') {
+  const isLoading =
+    fulfillmentMethod === 'SHIPPING' ? ratesState.kind === 'loading' : pickupState.kind === 'loading'
+
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-brand-black flex items-center justify-center">
         <div className="text-brand-parchment text-sm">Memuat…</div>
@@ -171,39 +222,80 @@ export default function OrderReviewPage() {
           </div>
         </div>
 
-        {/* Shipping */}
+        {/* Fulfillment */}
         <div data-testid="shipping-section" className="flex flex-col gap-3">
           <p className="text-brand-parchment text-xs uppercase tracking-wider">Pengiriman</p>
 
-          {ratesState.kind === 'no_address' && <AddressCardEmpty />}
+          <FulfillmentToggle value={fulfillmentMethod} onChange={setFulfillmentMethod} />
 
-          {ratesState.kind === 'error' && (
-            <div className="rounded-xl border border-[rgba(245,235,201,0.25)] bg-brand-midnight px-5 py-4 flex flex-col gap-3">
-              <p className="text-brand-parchment text-sm">{ratesState.message}</p>
-              <button
-                onClick={() => loadShippingRates(cart, setRatesState, setSelectedRate)}
-                data-testid="retry-rates-button"
-                className="text-brand-crema text-sm underline underline-offset-4 hover:text-brand-honey transition-colors self-start"
-              >
-                Coba lagi
-              </button>
-            </div>
+          {fulfillmentMethod === 'SHIPPING' && (
+            <>
+              {ratesState.kind === 'no_address' && <AddressCardEmpty />}
+
+              {ratesState.kind === 'error' && (
+                <div className="rounded-xl border border-[rgba(245,235,201,0.25)] bg-brand-midnight px-5 py-4 flex flex-col gap-3">
+                  <p className="text-brand-parchment text-sm">{ratesState.message}</p>
+                  <button
+                    onClick={() => {
+                      const myRequestId = ++requestIdRef.current
+                      loadShippingRates(cart, setRatesState, setSelectedRate, requestIdRef, myRequestId)
+                    }}
+                    data-testid="retry-rates-button"
+                    className="text-brand-crema text-sm underline underline-offset-4 hover:text-brand-honey transition-colors self-start"
+                  >
+                    Coba lagi
+                  </button>
+                </div>
+              )}
+
+              {ratesState.kind === 'ready' && (
+                <>
+                  <AddressCard address={ratesState.address} />
+                  <CourierPicker
+                    rates={ratesState.rates}
+                    selected={selectedRate}
+                    onSelect={setSelectedRate}
+                  />
+                  <div className="flex items-center justify-between px-1">
+                    <p className="text-brand-parchment text-sm">Ongkir</p>
+                    <p className="text-brand-crema text-sm font-semibold" data-testid="shipping-cost">
+                      {selectedRate ? formatIDR(selectedRate.price) : '—'}
+                    </p>
+                  </div>
+                </>
+              )}
+            </>
           )}
 
-          {ratesState.kind === 'ready' && (
+          {fulfillmentMethod === 'PICKUP' && (
             <>
-              <AddressCard address={ratesState.address} />
-              <CourierPicker
-                rates={ratesState.rates}
-                selected={selectedRate}
-                onSelect={setSelectedRate}
-              />
-              <div className="flex items-center justify-between px-1">
-                <p className="text-brand-parchment text-sm">Ongkir</p>
-                <p className="text-brand-crema text-sm font-semibold" data-testid="shipping-cost">
-                  {selectedRate ? formatIDR(selectedRate.price) : '—'}
-                </p>
-              </div>
+              {pickupState.kind === 'error' && (
+                <div className="rounded-xl border border-[rgba(245,235,201,0.25)] bg-brand-midnight px-5 py-4 flex flex-col gap-3">
+                  <p className="text-brand-parchment text-sm">{pickupState.message}</p>
+                  <button
+                    onClick={() => {
+                      const myRequestId = ++requestIdRef.current
+                      loadPickupInfo(cart, setPickupState, requestIdRef, myRequestId)
+                    }}
+                    data-testid="retry-pickup-button"
+                    className="text-brand-crema text-sm underline underline-offset-4 hover:text-brand-honey transition-colors self-start"
+                  >
+                    Coba lagi
+                  </button>
+                </div>
+              )}
+
+              {pickupState.kind === 'ready' && (
+                <>
+                  <PickupInfoCard location={pickupState.location} />
+                  <div className="flex items-center justify-between px-1">
+                    <p className="text-brand-parchment text-sm">Ongkir</p>
+                    <p className="text-brand-crema text-sm font-semibold" data-testid="shipping-cost">
+                      Gratis (Ambil Sendiri)
+                    </p>
+                  </div>
+                </>
+              )}
             </>
           )}
         </div>
