@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { FulfillmentBadge } from '@/components/FulfillmentBadge'
 import { PaymentBadge } from '@/components/PaymentBadge'
 import { DownloadInvoiceButton } from './_components/DownloadInvoiceButton'
+import { isPickupOrder } from '@/lib/shipping'
 
 export const dynamic = 'force-dynamic'
 
@@ -110,7 +111,7 @@ export default async function OrderDetailPage({ params }: Props) {
                 {formatIDR(order.total_amount)}
               </p>
             </div>
-            {order.shipping_cost != null && (
+            {!isPickupOrder(order) && order.shipping_cost != null && (
               <div className="flex items-center justify-between">
                 <p className="text-brand-parchment text-sm">Ongkir</p>
                 <p className="text-brand-crema text-sm font-semibold">
@@ -127,7 +128,7 @@ export default async function OrderDetailPage({ params }: Props) {
           </div>
         </div>
 
-        {order.shipping_cost != null && (
+        {!isPickupOrder(order) && order.shipping_cost != null && (
           <section data-testid="order-shipping-section">
             <div className="rounded-xl border border-[rgba(245,235,201,0.25)] bg-brand-midnight overflow-hidden">
               <div className="px-5 py-3 border-b border-[rgba(245,235,201,0.15)]">
@@ -143,6 +144,21 @@ export default async function OrderDetailPage({ params }: Props) {
                 <div data-testid="order-shipping-cost" className="text-brand-crema text-sm font-semibold">
                   Biaya: {formatIDR(order.shipping_cost)}
                 </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {isPickupOrder(order) && (
+          <section data-testid="order-pickup-section">
+            <div className="rounded-xl border border-[rgba(245,235,201,0.25)] bg-brand-midnight overflow-hidden">
+              <div className="px-5 py-3 border-b border-[rgba(245,235,201,0.15)]">
+                <p className="text-brand-parchment text-xs uppercase tracking-wider">Pengambilan</p>
+              </div>
+              <div className="px-5 py-4">
+                <p data-testid="order-pickup-note" className="text-brand-crema text-sm">
+                  Ambil Sendiri di lokasi gudang Agroastery
+                </p>
               </div>
             </div>
           </section>
