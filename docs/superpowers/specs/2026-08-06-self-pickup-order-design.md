@@ -87,6 +87,7 @@ export const createOrderInputSchema = z.object({
 - Select `shipping_courier` alongside existing columns.
 - Address lookup (`addresses` table query, lines 44-55) only enforced when `!isPickupOrder(order)`. When pickup and no address exists, `InvoiceData.recipientName`/`addressLine`/`postalCode` become optional/omitted; `lib/invoice/document.tsx` renders a "Ambil Sendiri di [warehouse]" line instead of the address block. This closes a real bug: today, any client with zero saved addresses gets a hard 404 on invoice download, and pickup makes zero-address clients possible for the first time.
 - `InvoiceData` type (`lib/invoice/document.tsx`) must mark `recipientName`, `addressLine`, `postalCode` as optional (`?:`) so the pickup branch is type-checked, not just runtime-omitted.
+- The PDF's totals section renders a "Shipping Cost" line whenever `shippingCost != null` — pickup orders have `shipping_cost = 0` (not null), so without a guard the PDF would print a confusing "Shipping Cost: Rp 0". The totals section must also branch on `isPickup`: show "Shipping Cost: Pickup (Gratis)" instead of the numeric line.
 
 **Telegram (`lib/telegram.ts`):**
 - `sendOrderNotification` payload's `shippingCourier` already carries the sentinel; no new field needed. Message construction branches: when `shippingCourier === PICKUP_COURIER_CODE`, render "📦 Ambil Sendiri" instead of "🚚 Ongkir: ..." line, skip the courier/service parenthetical. `orderId` is already passed through from `createOrder.ts` (`order.id`, line 120) for both fulfillment paths — the pickup branch must not drop it, since it's required for `notification_logs` insert.
@@ -105,7 +106,7 @@ None. Order is flagged pickup; admin coordinates timing via existing Telegram no
 |---|---|
 | PICKUP + Biteship origin not configured | `ORIGIN_NOT_CONFIGURED`, same error surface/message as SHIPPING path |
 | PICKUP + invalid cart (bad product/qty) | `INVALID_CART`, via shared `validateCartItems` |
-| Toggle switched mid-fetch (race) | Same re-invocation guard pattern `loadShippingRates` already uses — latest call wins, stale response ignored |
+| Toggle switched mid-fetch (race) | The current `loadShippingRates` has no staleness guard today — switching SHIPPING→PICKUP→SHIPPING rapidly can let responses land out of order and overwrite each other's state. Fix adds a fresh incrementing-request-ID ref shared by both loaders: each call captures its own ID, and any loader whose response arrives after a newer request started is discarded before calling `setState`. |
 | Invoice download, pickup order, no saved address | No longer 404s — renders pickup note instead of address block |
 
 ## UI
@@ -114,9 +115,10 @@ None. Order is flagged pickup; admin coordinates timing via existing Telegram no
 
 ## Testing
 
-- E2E (`e2e/tests/shipping.spec.ts`): add pickup flow — toggle to "Ambil Sendiri", submit without touching address, assert order created with `shipping_courier = 'pickup'`.
+- E2E (`e2e/tests/portal.spec.ts`, not `shipping.spec.ts`): `shipping.spec.ts` is stub-only today (its tests are `TODO`-commented placeholders with no working cart→review navigation), while `portal.spec.ts` already contains the real, working CP-03→CP-04 order-review-and-submission flow with the helpers (`getFirstProductId`, `mockBiteshipLocation`, `mockBiteshipRates`, `getTestIds`, `adminSupabase`) this feature's tests need. New pickup coverage is added there, as its own `CP-04b`/`CP-07` blocks, to reuse those helpers and stay consistent with how every other portal flow is tested.
+- E2E: add pickup flow — toggle to "Ambil Sendiri", submit without touching address, assert order created with `shipping_courier = 'pickup'`.
 - E2E: order detail page shows pickup block, not courier/ETD block.
-- E2E: invoice download succeeds for a pickup order with zero saved addresses. Test must explicitly delete/clean any seeded addresses for the test client before order submission — otherwise the seed helper's default address (see `e2e seed helper inserts default address for test client`) makes this scenario impossible to actually exercise, and the test would pass without covering the zero-address path.
+- E2E: invoice download succeeds for a pickup order with zero saved addresses. Test must explicitly delete/clean any seeded addresses for the test client before order submission — otherwise the seed helper's default address (see `e2e seed helper inserts default address for test client`) makes this scenario impossible to actually exercise, and the test would pass without covering the zero-address path. Must run last in the suite (own serial block, addresses restored in `afterAll`) since every other test depends on that client having an address.
 - Existing SHIPPING-path tests unchanged — `fulfillmentMethod` defaults through the toggle's default state, no regression expected.
 
 ## Out of Scope

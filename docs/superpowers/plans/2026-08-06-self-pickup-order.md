@@ -725,6 +725,8 @@ git commit -m "feat(orders): add FulfillmentToggle and PickupInfoCard components
 - Consumes: `getPickupInfo` (Task 2), `createOrder` (Task 3, now needs `fulfillmentMethod`), `FulfillmentToggle`/`FulfillmentMethod` (Task 4), `PickupInfoCard` (Task 4), `PickupLocation` type (Task 1).
 - Produces: no new exports — this is the page component itself, exercised directly by Task 9/10 E2E tests via `data-testid="fulfillment-toggle"`, `data-testid="fulfillment-option-pickup"`, `data-testid="fulfillment-option-shipping"`, `data-testid="pickup-info-card"`.
 
+**Race condition note:** the current `loadShippingRates` has no staleness guard — rapidly toggling SHIPPING→PICKUP→SHIPPING can let an in-flight `getShippingRates` response land after a newer `getPickupInfo` call already resolved, overwriting the correct state with stale data. Both loaders below take a shared `requestIdRef` and their own captured `myRequestId`; each discards its result if a newer request has started by the time it resolves.
+
 - [ ] **Step 1: Rewrite `app/portal/order/review/page.tsx`**
 
 Replace the entire file with:
@@ -732,7 +734,7 @@ Replace the entire file with:
 ```tsx
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createOrder } from '../_actions/createOrder'
@@ -763,13 +765,16 @@ function formatIDR(amount: number) {
 async function loadShippingRates(
   items: CartItem[],
   setRatesState: React.Dispatch<React.SetStateAction<RatesState>>,
-  setSelectedRate: React.Dispatch<React.SetStateAction<RateOption | null>>
+  setSelectedRate: React.Dispatch<React.SetStateAction<RateOption | null>>,
+  requestIdRef: React.MutableRefObject<number>,
+  myRequestId: number
 ) {
   setRatesState({ kind: 'loading' })
   setSelectedRate(null)
   const result = await getShippingRates({
     items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
   })
+  if (requestIdRef.current !== myRequestId) return // a newer request superseded this one — ignore
   if (!result.ok) {
     if (result.error === 'NO_ADDRESS') {
       setRatesState({ kind: 'no_address' })
@@ -789,12 +794,15 @@ async function loadShippingRates(
 
 async function loadPickupInfo(
   items: CartItem[],
-  setPickupState: React.Dispatch<React.SetStateAction<PickupState>>
+  setPickupState: React.Dispatch<React.SetStateAction<PickupState>>,
+  requestIdRef: React.MutableRefObject<number>,
+  myRequestId: number
 ) {
   setPickupState({ kind: 'loading' })
   const result = await getPickupInfo({
     items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
   })
+  if (requestIdRef.current !== myRequestId) return // a newer request superseded this one — ignore
   if (!result.ok) {
     const messages: Record<string, string> = {
       INVALID_CART: 'Isi keranjang tidak valid, silakan kembali ke katalog',
@@ -826,16 +834,18 @@ export default function OrderReviewPage() {
   const [ratesState, setRatesState] = useState<RatesState>({ kind: 'loading' })
   const [selectedRate, setSelectedRate] = useState<RateOption | null>(null)
   const [pickupState, setPickupState] = useState<PickupState>({ kind: 'loading' })
+  const requestIdRef = useRef(0)
 
   useEffect(() => {
     if (cart.length === 0) {
       router.replace('/portal')
       return
     }
+    const myRequestId = ++requestIdRef.current
     if (fulfillmentMethod === 'SHIPPING') {
-      loadShippingRates(cart, setRatesState, setSelectedRate)
+      loadShippingRates(cart, setRatesState, setSelectedRate, requestIdRef, myRequestId)
     } else {
-      loadPickupInfo(cart, setPickupState)
+      loadPickupInfo(cart, setPickupState, requestIdRef, myRequestId)
     }
   }, [router, cart, fulfillmentMethod])
 
@@ -863,7 +873,8 @@ export default function OrderReviewPage() {
     if (!result.ok) {
       if (result.error === 'Kurir tidak lagi tersedia, silakan pilih ulang') {
         setRatesState({ kind: 'loading' })
-        loadShippingRates(cart, setRatesState, setSelectedRate)
+        const myRequestId = ++requestIdRef.current
+        loadShippingRates(cart, setRatesState, setSelectedRate, requestIdRef, myRequestId)
       }
       setError(result.error)
       setSubmitting(false)
@@ -959,7 +970,10 @@ export default function OrderReviewPage() {
                 <div className="rounded-xl border border-[rgba(245,235,201,0.25)] bg-brand-midnight px-5 py-4 flex flex-col gap-3">
                   <p className="text-brand-parchment text-sm">{ratesState.message}</p>
                   <button
-                    onClick={() => loadShippingRates(cart, setRatesState, setSelectedRate)}
+                    onClick={() => {
+                      const myRequestId = ++requestIdRef.current
+                      loadShippingRates(cart, setRatesState, setSelectedRate, requestIdRef, myRequestId)
+                    }}
                     data-testid="retry-rates-button"
                     className="text-brand-crema text-sm underline underline-offset-4 hover:text-brand-honey transition-colors self-start"
                   >
@@ -993,7 +1007,10 @@ export default function OrderReviewPage() {
                 <div className="rounded-xl border border-[rgba(245,235,201,0.25)] bg-brand-midnight px-5 py-4 flex flex-col gap-3">
                   <p className="text-brand-parchment text-sm">{pickupState.message}</p>
                   <button
-                    onClick={() => loadPickupInfo(cart, setPickupState)}
+                    onClick={() => {
+                      const myRequestId = ++requestIdRef.current
+                      loadPickupInfo(cart, setPickupState, requestIdRef, myRequestId)
+                    }}
                     data-testid="retry-pickup-button"
                     className="text-brand-crema text-sm underline underline-offset-4 hover:text-brand-honey transition-colors self-start"
                   >
@@ -1374,6 +1391,34 @@ with:
           </View>
 ```
 
+Pickup orders have `shipping_cost = 0` (not `null`), so the totals section's existing `data.shippingCost != null` guard would otherwise print a confusing "Shipping Cost: Rp 0" line. Find the totals block (existing lines 213-218):
+
+```tsx
+          {data.shippingCost != null && (
+            <View style={s.totalRow}>
+              <Text style={s.totalLabel}>Shipping Cost</Text>
+              <Text style={s.totalVal}>{formatIDR(data.shippingCost)}</Text>
+            </View>
+          )}
+```
+
+Replace with:
+
+```tsx
+          {!data.isPickup && data.shippingCost != null && (
+            <View style={s.totalRow}>
+              <Text style={s.totalLabel}>Shipping Cost</Text>
+              <Text style={s.totalVal}>{formatIDR(data.shippingCost)}</Text>
+            </View>
+          )}
+          {data.isPickup && (
+            <View style={s.totalRow}>
+              <Text style={s.totalLabel}>Shipping Cost</Text>
+              <Text style={s.totalVal}>Pickup (Gratis)</Text>
+            </View>
+          )}
+```
+
 - [ ] **Step 3: Type-check**
 
 Run: `npx tsc --noEmit`
@@ -1609,3 +1654,4 @@ git commit -m "test(orders): add E2E coverage for zero-address pickup invoice do
 - **Placeholder scan:** no TBD/TODO; every step shows real code, not descriptions of code.
 - **Type consistency:** `PickupLocation` (Task 1) is used identically in `getPickupInfo.ts` (Task 2), `PickupInfoCard.tsx` (Task 4), and `review/page.tsx` (Task 5). `isPickupOrder` (Task 1) is used identically in `orders/[id]/page.tsx` (Task 6) and `invoice/[id]/route.ts` (Task 7). `PICKUP_COURIER_CODE` (Task 1) is used identically in `createOrder.ts` (Task 3) and `telegram.ts` (Task 8) — same string constant, same import path.
 - **Additional fix found during planning, not in the original spec:** Task 6 Step 2 guards the inline "Ongkir" line in the items summary card (not just the dedicated shipping section) — without it, pickup orders would display a confusing "Ongkir: Rp 0" line. Flagging this here since it's a small scope addition beyond the literal spec text.
+- **Fixes from review round 2:** Task 5's loaders now carry a `requestIdRef`/`myRequestId` staleness guard (the original draft's claim that `loadShippingRates` already had one was false — verified against the pre-existing file, it didn't). Task 7's PDF totals section now branches on `data.isPickup` so it prints "Pickup (Gratis)" instead of "Shipping Cost: Rp 0". Both design spec and this plan were updated together so they stay in sync.
