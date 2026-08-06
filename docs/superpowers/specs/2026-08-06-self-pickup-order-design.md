@@ -75,6 +75,7 @@ export const createOrderInputSchema = z.object({
 4. Submit → `createOrder({ items, notes, fulfillmentMethod, shippingSelection? })`.
 
 **`createOrder.ts` branch:**
+- `supabase.rpc('generate_order_number')` stays a shared step ahead of the branch, unaffected by fulfillment method — both paths call it exactly as the current SHIPPING-only code already does.
 - `SHIPPING`: unchanged — `loadShippingContext`, `findRateMatch`, insert with real courier/service/etd/cost.
 - `PICKUP`: `validateCartItems` for items + totalAmount, `getPickupLocation` for `ORIGIN_NOT_CONFIGURED` check, insert with `shipping_courier: 'pickup'`, `shipping_service: null`, `shipping_etd: null`, `shipping_cost: 0`.
 
