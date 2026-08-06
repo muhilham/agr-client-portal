@@ -15,9 +15,10 @@ const AGROASTERY = {
 export type InvoiceData = {
   orderNumber: string
   orderDate: Date
-  recipientName: string
-  addressLine: string
-  postalCode: string
+  recipientName?: string
+  addressLine?: string
+  postalCode?: string
+  isPickup?: boolean
   items: Array<{
     productName: string
     unitPrice: number
@@ -159,9 +160,18 @@ export function InvoiceDocument({ data }: { data: InvoiceData }) {
           </View>
 
           <View style={s.infoCol}>
-            <Text style={s.infoHeading}>To:  {data.recipientName}</Text>
-            <Text style={s.infoText}>{data.addressLine}</Text>
-            <Text style={s.infoText}>{data.postalCode}</Text>
+            {data.isPickup ? (
+              <>
+                <Text style={s.infoHeading}>Ambil Sendiri</Text>
+                <Text style={s.infoText}>Diambil di lokasi gudang Agroastery</Text>
+              </>
+            ) : (
+              <>
+                <Text style={s.infoHeading}>To:  {data.recipientName}</Text>
+                <Text style={s.infoText}>{data.addressLine}</Text>
+                <Text style={s.infoText}>{data.postalCode}</Text>
+              </>
+            )}
           </View>
 
           <View style={s.infoCol}>
@@ -210,10 +220,16 @@ export function InvoiceDocument({ data }: { data: InvoiceData }) {
             <Text style={s.totalLabel}>Sub Total</Text>
             <Text style={s.totalVal}>{formatIDR(data.subtotal)}</Text>
           </View>
-          {data.shippingCost != null && (
+          {!data.isPickup && data.shippingCost != null && (
             <View style={s.totalRow}>
               <Text style={s.totalLabel}>Shipping Cost</Text>
               <Text style={s.totalVal}>{formatIDR(data.shippingCost)}</Text>
+            </View>
+          )}
+          {data.isPickup && (
+            <View style={s.totalRow}>
+              <Text style={s.totalLabel}>Shipping Cost</Text>
+              <Text style={s.totalVal}>Pickup (Gratis)</Text>
             </View>
           )}
           <View style={s.totalRow}>

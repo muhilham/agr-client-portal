@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSupabaseAdmin } from '@/lib/supabase/admin'
+import { isPickupOrder } from '@/lib/shipping'
 import { type InvoiceData } from '@/lib/invoice/document'
 import { renderInvoicePDF } from '@/lib/invoice/render'
 
@@ -22,7 +23,7 @@ export async function GET(
   const { data: order } = await supabase
     .from('orders')
     .select(
-      'id, order_number, total_amount, shipping_cost, created_at, order_items (product_name, unit_price, quantity, subtotal)'
+      'id, order_number, total_amount, shipping_cost, shipping_courier, created_at, order_items (product_name, unit_price, quantity, subtotal)'
     )
     .eq('id', id)
     .single()
@@ -41,17 +42,23 @@ export async function GET(
     return NextResponse.json({ error: 'Client not found' }, { status: 404 })
   }
 
-  const admin = getSupabaseAdmin()
-  const { data: addresses } = await admin
-    .from('addresses')
-    .select('recipient_name, address_line, postal_code, is_default')
-    .eq('client_id', client.id)
+  const isPickup = isPickupOrder(order)
 
-  const address =
-    (addresses ?? []).find((a) => a.is_default) ?? (addresses ?? [])[0]
+  let address: { recipient_name: string; address_line: string; postal_code: string } | undefined
 
-  if (!address) {
-    return NextResponse.json({ error: 'Address not found' }, { status: 404 })
+  if (!isPickup) {
+    const admin = getSupabaseAdmin()
+    const { data: addresses } = await admin
+      .from('addresses')
+      .select('recipient_name, address_line, postal_code, is_default')
+      .eq('client_id', client.id)
+
+    const found = (addresses ?? []).find((a) => a.is_default) ?? (addresses ?? [])[0]
+
+    if (!found) {
+      return NextResponse.json({ error: 'Address not found' }, { status: 404 })
+    }
+    address = found
   }
 
   const items = (order.order_items as Array<{
@@ -68,9 +75,10 @@ export async function GET(
   const data: InvoiceData = {
     orderNumber: order.order_number,
     orderDate: new Date(order.created_at),
-    recipientName: address.recipient_name,
-    addressLine: address.address_line,
-    postalCode: address.postal_code,
+    recipientName: address?.recipient_name,
+    addressLine: address?.address_line,
+    postalCode: address?.postal_code,
+    isPickup,
     items: items.map((item) => ({
       productName: item.product_name,
       unitPrice: item.unit_price,
