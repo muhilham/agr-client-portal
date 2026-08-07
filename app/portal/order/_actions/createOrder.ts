@@ -10,6 +10,7 @@ import {
   getPickupLocation,
   PICKUP_COURIER_CODE,
   FREE_COURIER_CODE,
+  MANUAL_COURIER_CODE,
   type ValidatedItem,
 } from '@/lib/shipping'
 import { sendOrderNotification } from '@/lib/telegram'
@@ -46,7 +47,7 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
   }
 
   let orderItems: ValidatedItem[]
-  let dbShippingCost: number
+  let dbShippingCost: number | null
   let dbShippingCourier: string | null
   let dbShippingService: string | null
   let dbShippingEtd: string | null
@@ -71,23 +72,27 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
     notifShippingCourier = PICKUP_COURIER_CODE
     notifShippingService = undefined
   } else {
-    const ctx = await loadShippingContext(client.id, parsed.data.items)
-
-    if (!ctx.ok) {
-      const messages: Record<string, string> = {
-        NO_ADDRESS: 'Alamat pengiriman tidak ditemukan',
-        INVALID_CART: 'Isi keranjang tidak valid, silakan kembali ke katalog',
-        ORIGIN_NOT_CONFIGURED: 'Pengiriman tidak tersedia, hubungi admin',
-        RATES_UNAVAILABLE: 'Pengiriman tidak dapat dihitung',
-      }
-      return { ok: false, error: messages[ctx.error] ?? 'Terjadi kesalahan' }
-    }
-
-    if (!parsed.data.shippingSelection) {
+    // SHIPPING branch
+    const shippingSelection = parsed.data.shippingSelection
+    if (!shippingSelection) {
       return { ok: false, error: 'Metode pengiriman tidak dipilih' }
     }
 
-    if (ctx.kind === 'free_shipping') {
+    if (shippingSelection.mode === 'free') {
+      const ctx = await loadShippingContext(client.id, parsed.data.items)
+      if (!ctx.ok) {
+        const messages: Record<string, string> = {
+          NO_ADDRESS: 'Alamat pengiriman tidak ditemukan',
+          INVALID_CART: 'Isi keranjang tidak valid, silakan kembali ke katalog',
+          ORIGIN_NOT_CONFIGURED: 'Pengiriman tidak tersedia, hubungi admin',
+          RATES_UNAVAILABLE: 'Pengiriman tidak dapat dihitung',
+        }
+        return { ok: false, error: messages[ctx.error] ?? 'Terjadi kesalahan' }
+      }
+      if (ctx.kind !== 'free_shipping') {
+        return { ok: false, error: 'Tidak dapat menggunakan pengiriman gratis' }
+      }
+
       const itemsResult = await validateCartItems(client.id, parsed.data.items)
       if (!itemsResult.ok) {
         return { ok: false, error: 'Isi keranjang tidak valid, silakan kembali ke katalog' }
@@ -97,19 +102,43 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
       dbShippingCourier = FREE_COURIER_CODE
       dbShippingService = null
       dbShippingEtd = null
-      notifShippingCourier = FREE_COURIER_CODE
+      notifShippingCourier = 'Gratis'
       notifShippingService = undefined
+
+    } else if (shippingSelection.mode === 'manual') {
+      const itemsResult = await validateCartItems(client.id, parsed.data.items)
+      if (!itemsResult.ok) {
+        return { ok: false, error: 'Isi keranjang tidak valid, silakan kembali ke katalog' }
+      }
+      orderItems = itemsResult.validatedItems
+      dbShippingCost = null
+      dbShippingCourier = MANUAL_COURIER_CODE
+      dbShippingService = null
+      dbShippingEtd = null
+      notifShippingCourier = 'Manual (admin)'
+      notifShippingService = undefined
+
     } else {
-      if (parsed.data.shippingSelection.mode !== 'biteship') {
-        return { ok: false, error: 'Metode pengiriman tidak valid' }
+      // biteship
+      const ctx = await loadShippingContext(client.id, parsed.data.items)
+      if (!ctx.ok) {
+        const messages: Record<string, string> = {
+          NO_ADDRESS: 'Alamat pengiriman tidak ditemukan',
+          INVALID_CART: 'Isi keranjang tidak valid, silakan kembali ke katalog',
+          ORIGIN_NOT_CONFIGURED: 'Pengiriman tidak tersedia, hubungi admin',
+          RATES_UNAVAILABLE: 'Pengiriman tidak dapat dihitung',
+        }
+        return { ok: false, error: messages[ctx.error] ?? 'Terjadi kesalahan' }
+      }
+      if (ctx.kind !== 'rates') {
+        return { ok: false, error: 'Tidak dapat menghitung ongkir' }
       }
 
       const match = findRateMatch(
         ctx.rates,
-        parsed.data.shippingSelection.courier_code,
-        parsed.data.shippingSelection.service_code
+        shippingSelection.courier_code,
+        shippingSelection.service_code
       )
-
       if (!match) {
         return { ok: false, error: 'Kurir tidak lagi tersedia, silakan pilih ulang' }
       }
@@ -191,7 +220,7 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
         unitPrice: i.unitPrice,
       })),
       totalAmount,
-      shippingCost: dbShippingCost,
+      shippingCost: dbShippingCost ?? undefined,
       shippingCourier: notifShippingCourier,
       shippingService: notifShippingService,
       createdAt: new Date(),
