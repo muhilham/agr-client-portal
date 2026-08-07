@@ -72,6 +72,13 @@ export async function GET(
     return NextResponse.json({ error: 'No items' }, { status: 422 })
   }
 
+  if (order.shipping_courier === 'manual' && order.shipping_cost == null) {
+    return NextResponse.json(
+      { error: 'Biaya pengiriman belum dihitung oleh admin. Silakan hubungi admin untuk invoice.' },
+      { status: 422 }
+    )
+  }
+
   const data: InvoiceData = {
     orderNumber: order.order_number,
     orderDate: new Date(order.created_at),
