@@ -1,9 +1,14 @@
 import { z } from 'zod'
 
-export const shippingSelectionSchema = z.object({
-  courier_code: z.string().min(1).max(64),
-  service_code: z.string().min(1).max(64),
-})
+export const shippingSelectionSchema = z.discriminatedUnion('mode', [
+  z.object({ mode: z.literal('free') }),
+  z.object({ mode: z.literal('manual') }),
+  z.object({
+    mode: z.literal('biteship'),
+    courier_code: z.string().min(1).max(64),
+    service_code: z.string().min(1).max(64),
+  }),
+])
 
 export const orderItemInputSchema = z.object({
   productId: z.string().uuid(),
