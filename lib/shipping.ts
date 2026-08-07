@@ -11,6 +11,8 @@ import {
 const DEFAULT_COURIERS = 'jne,tiki,sicepat,anteraja,jnt,ninja'
 
 export const PICKUP_COURIER_CODE = 'pickup'
+export const FREE_COURIER_CODE = 'free'
+export const MANUAL_COURIER_CODE = 'manual'
 
 export function isPickupOrder(order: { shipping_courier: string | null }): boolean {
   return order.shipping_courier === PICKUP_COURIER_CODE
@@ -99,7 +101,8 @@ export async function getPickupLocation(): Promise<PickupLocation | null> {
 }
 
 export type ShippingContext =
-  | { ok: true; address: AddressDisplay; originLocation: BiteshipLocation; rates: BiteshipRate[]; validatedItems: ValidatedItem[] }
+  | { ok: true; kind: 'free_shipping'; address: AddressDisplay }
+  | { ok: true; kind: 'rates'; address: AddressDisplay; originLocation: BiteshipLocation; rates: BiteshipRate[]; validatedItems: ValidatedItem[] }
   | { ok: false; error: 'NO_ADDRESS' | 'INVALID_CART' | 'ORIGIN_NOT_CONFIGURED' | 'RATES_UNAVAILABLE' }
 
 export async function loadShippingContext(
@@ -107,6 +110,48 @@ export async function loadShippingContext(
   items: { productId: string; quantity: number }[]
 ): Promise<ShippingContext> {
   const supabase = getSupabaseAdmin()
+
+  // 0. Check client free shipping flag
+  const { data: clientRow } = await supabase
+    .from('clients')
+    .select('*')
+    .eq('id', clientId)
+    .single()
+
+  if ((clientRow as any)?.has_free_shipping) {
+    // Load address only (needed for display)
+    let addressRow = await supabase
+      .from('addresses')
+      .select('recipient_name, address_line, postal_code')
+      .eq('client_id', clientId)
+      .eq('is_default', true)
+      .maybeSingle()
+      .then(({ data }) => data ?? null)
+
+    if (!addressRow) {
+      addressRow = await supabase
+        .from('addresses')
+        .select('recipient_name, address_line, postal_code')
+        .eq('client_id', clientId)
+        .limit(1)
+        .maybeSingle()
+        .then(({ data }) => data ?? null)
+    }
+
+    if (!addressRow) {
+      return { ok: false, error: 'NO_ADDRESS' }
+    }
+
+    return {
+      ok: true,
+      kind: 'free_shipping',
+      address: {
+        recipient_name: addressRow.recipient_name,
+        address_line: addressRow.address_line,
+        postal_code: addressRow.postal_code,
+      },
+    }
+  }
 
   // 1. Default address (fallback to any address if no default)
   let addressRow = await supabase
@@ -193,7 +238,7 @@ export async function loadShippingContext(
     return { ok: false, error: 'RATES_UNAVAILABLE' }
   }
 
-  return { ok: true, address, originLocation: origin, rates, validatedItems }
+  return { ok: true, kind: 'rates', address, originLocation: origin, rates, validatedItems }
 }
 
 export function groupRatesByCourier(rates: BiteshipRate[]): RateOption[] {

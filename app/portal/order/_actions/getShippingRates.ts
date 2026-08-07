@@ -41,6 +41,10 @@ export async function getShippingRates(input: unknown): Promise<ShippingRatesRes
     return { ok: false, error: ctx.error }
   }
 
+  if (ctx.kind === 'free_shipping') {
+    return { ok: true, rates: [], address: ctx.address }
+  }
+
   const rates = groupRatesByCourier(ctx.rates)
 
   return { ok: true, rates, address: ctx.address }

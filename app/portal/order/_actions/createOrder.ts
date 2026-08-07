@@ -9,6 +9,7 @@ import {
   validateCartItems,
   getPickupLocation,
   PICKUP_COURIER_CODE,
+  FREE_COURIER_CODE,
   type ValidatedItem,
 } from '@/lib/shipping'
 import { sendOrderNotification } from '@/lib/telegram'
@@ -86,23 +87,41 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
       return { ok: false, error: 'Metode pengiriman tidak dipilih' }
     }
 
-    const match = findRateMatch(
-      ctx.rates,
-      parsed.data.shippingSelection.courier_code,
-      parsed.data.shippingSelection.service_code
-    )
+    if (ctx.kind === 'free_shipping') {
+      const itemsResult = await validateCartItems(client.id, parsed.data.items)
+      if (!itemsResult.ok) {
+        return { ok: false, error: 'Isi keranjang tidak valid, silakan kembali ke katalog' }
+      }
+      orderItems = itemsResult.validatedItems
+      dbShippingCost = 0
+      dbShippingCourier = FREE_COURIER_CODE
+      dbShippingService = null
+      dbShippingEtd = null
+      notifShippingCourier = FREE_COURIER_CODE
+      notifShippingService = undefined
+    } else {
+      if (parsed.data.shippingSelection.mode !== 'biteship') {
+        return { ok: false, error: 'Metode pengiriman tidak valid' }
+      }
 
-    if (!match) {
-      return { ok: false, error: 'Kurir tidak lagi tersedia, silakan pilih ulang' }
+      const match = findRateMatch(
+        ctx.rates,
+        parsed.data.shippingSelection.courier_code,
+        parsed.data.shippingSelection.service_code
+      )
+
+      if (!match) {
+        return { ok: false, error: 'Kurir tidak lagi tersedia, silakan pilih ulang' }
+      }
+
+      orderItems = ctx.validatedItems
+      dbShippingCost = match.price
+      dbShippingCourier = match.courier_code
+      dbShippingService = match.courier_service_code
+      dbShippingEtd = match.duration
+      notifShippingCourier = match.courier_name
+      notifShippingService = match.courier_service_name
     }
-
-    orderItems = ctx.validatedItems
-    dbShippingCost = match.price
-    dbShippingCourier = match.courier_code
-    dbShippingService = match.courier_service_code
-    dbShippingEtd = match.duration
-    notifShippingCourier = match.courier_name
-    notifShippingService = match.courier_service_name
   }
 
   const totalAmount = orderItems.reduce((sum, i) => sum + i.subtotal, 0)
