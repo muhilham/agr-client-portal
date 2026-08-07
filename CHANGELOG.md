@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/muhilham/agr-client-portal/compare/v0.5.0...v0.6.0) (2026-08-07)
+
+
+### Features
+
+* free shipping & manual shipping modes ([#7](https://github.com/muhilham/agr-client-portal/issues/7)) ([f4b410d](https://github.com/muhilham/agr-client-portal/commit/f4b410d98e55bd2153a0be66c5d85aca911a0c52))
+
 ## [0.5.0](https://github.com/muhilham/agr-client-portal/compare/v0.4.0...v0.5.0) (2026-08-07)
 
 
