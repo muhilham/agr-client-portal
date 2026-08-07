@@ -96,7 +96,7 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
 
       const itemsResult = await validateCartItems(client.id, parsed.data.items)
       if (!itemsResult.ok) {
-        return { ok: false, error: 'Isi keranjang tidak valid, silakan kembali ke katalog' }
+        return { ok: false, error: SHIPPING_ERROR_MESSAGES['INVALID_CART'] }
       }
       orderItems = itemsResult.validatedItems
       dbShippingCost = 0
@@ -109,7 +109,7 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
     } else if (shippingSelection.mode === 'manual') {
       const itemsResult = await validateCartItems(client.id, parsed.data.items)
       if (!itemsResult.ok) {
-        return { ok: false, error: 'Isi keranjang tidak valid, silakan kembali ke katalog' }
+        return { ok: false, error: SHIPPING_ERROR_MESSAGES['INVALID_CART'] }
       }
       orderItems = itemsResult.validatedItems
       dbShippingCost = null

@@ -8,7 +8,8 @@ async function getFirstProductId(page: Page): Promise<string> {
   const card = page.locator('[data-testid^="product-card-"]').first()
   await card.waitFor()
   const testId = await card.getAttribute('data-testid')
-  return testId!.replace('product-card-', '')
+  if (!testId) throw new Error('Product card missing data-testid')
+  return testId.replace('product-card-', '')
 }
 
 test.describe('shipping at checkout', () => {

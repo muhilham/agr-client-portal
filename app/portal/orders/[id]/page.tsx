@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { FulfillmentBadge } from '@/components/FulfillmentBadge'
 import { PaymentBadge } from '@/components/PaymentBadge'
 import { DownloadInvoiceButton } from './_components/DownloadInvoiceButton'
-import { isPickupOrder } from '@/lib/shipping'
+import { isPickupOrder, FREE_COURIER_CODE, MANUAL_COURIER_CODE } from '@/lib/shipping'
 
 export const dynamic = 'force-dynamic'
 
@@ -128,7 +128,7 @@ export default async function OrderDetailPage({ params }: Props) {
           </div>
         </div>
 
-        {order.shipping_courier === 'free' && (
+        {order.shipping_courier === FREE_COURIER_CODE && (
           <section data-testid="order-shipping-section">
             <div className="rounded-xl border border-[rgba(245,235,201,0.25)] bg-brand-midnight overflow-hidden">
               <div className="px-5 py-3 border-b border-[rgba(245,235,201,0.15)]">
@@ -146,7 +146,7 @@ export default async function OrderDetailPage({ params }: Props) {
           </section>
         )}
 
-        {order.shipping_courier === 'manual' && (
+        {order.shipping_courier === MANUAL_COURIER_CODE && (
           <section data-testid="order-shipping-section">
             <div className="rounded-xl border border-[rgba(245,235,201,0.25)] bg-brand-midnight overflow-hidden">
               <div className="px-5 py-3 border-b border-[rgba(245,235,201,0.15)]">
@@ -161,7 +161,7 @@ export default async function OrderDetailPage({ params }: Props) {
           </section>
         )}
 
-        {!isPickupOrder(order) && order.shipping_courier !== 'free' && order.shipping_courier !== 'manual' && order.shipping_cost != null && (
+        {!isPickupOrder(order) && order.shipping_courier !== FREE_COURIER_CODE && order.shipping_courier !== MANUAL_COURIER_CODE && order.shipping_cost != null && (
           <section data-testid="order-shipping-section">
             <div className="rounded-xl border border-[rgba(245,235,201,0.25)] bg-brand-midnight overflow-hidden">
               <div className="px-5 py-3 border-b border-[rgba(245,235,201,0.15)]">
@@ -222,7 +222,7 @@ export default async function OrderDetailPage({ params }: Props) {
           >
             Buat Pesanan Baru
           </Link>
-          {order.shipping_courier === 'manual' && order.shipping_cost == null ? (
+          {order.shipping_courier === MANUAL_COURIER_CODE && order.shipping_cost == null ? (
             <div className="rounded-lg bg-brand-midnight border border-brand-parchment/25 px-4 py-3 text-brand-parchment text-sm text-center">
               Invoice tersedia setelah admin menghitung biaya pengiriman.
             </div>

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSupabaseAdmin } from '@/lib/supabase/admin'
-import { isPickupOrder } from '@/lib/shipping'
+import { isPickupOrder, MANUAL_COURIER_CODE } from '@/lib/shipping'
 import { type InvoiceData } from '@/lib/invoice/document'
 import { renderInvoicePDF } from '@/lib/invoice/render'
 
@@ -72,7 +72,7 @@ export async function GET(
     return NextResponse.json({ error: 'No items' }, { status: 422 })
   }
 
-  if (order.shipping_courier === 'manual' && order.shipping_cost == null) {
+  if (order.shipping_courier === MANUAL_COURIER_CODE && order.shipping_cost == null) {
     return NextResponse.json(
       { error: 'Biaya pengiriman belum dihitung oleh admin. Silakan hubungi admin untuk invoice.' },
       { status: 422 }
