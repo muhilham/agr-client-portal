@@ -78,16 +78,17 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
       return { ok: false, error: 'Metode pengiriman tidak dipilih' }
     }
 
+    const SHIPPING_ERROR_MESSAGES: Record<string, string> = {
+      NO_ADDRESS: 'Alamat pengiriman tidak ditemukan',
+      INVALID_CART: 'Isi keranjang tidak valid, silakan kembali ke katalog',
+      ORIGIN_NOT_CONFIGURED: 'Pengiriman tidak tersedia, hubungi admin',
+      RATES_UNAVAILABLE: 'Pengiriman tidak dapat dihitung',
+    }
+
     if (shippingSelection.mode === 'free') {
       const ctx = await loadShippingContext(client.id, parsed.data.items)
       if (!ctx.ok) {
-        const messages: Record<string, string> = {
-          NO_ADDRESS: 'Alamat pengiriman tidak ditemukan',
-          INVALID_CART: 'Isi keranjang tidak valid, silakan kembali ke katalog',
-          ORIGIN_NOT_CONFIGURED: 'Pengiriman tidak tersedia, hubungi admin',
-          RATES_UNAVAILABLE: 'Pengiriman tidak dapat dihitung',
-        }
-        return { ok: false, error: messages[ctx.error] ?? 'Terjadi kesalahan' }
+        return { ok: false, error: SHIPPING_ERROR_MESSAGES[ctx.error] ?? 'Terjadi kesalahan' }
       }
       if (ctx.kind !== 'free_shipping') {
         return { ok: false, error: 'Tidak dapat menggunakan pengiriman gratis' }
@@ -119,16 +120,13 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
       notifShippingService = undefined
 
     } else {
-      // biteship
+      // biteship (discriminated union guarantees this is the only remaining mode)
+      if (shippingSelection.mode !== 'biteship') {
+        return { ok: false, error: 'Metode pengiriman tidak valid' }
+      }
       const ctx = await loadShippingContext(client.id, parsed.data.items)
       if (!ctx.ok) {
-        const messages: Record<string, string> = {
-          NO_ADDRESS: 'Alamat pengiriman tidak ditemukan',
-          INVALID_CART: 'Isi keranjang tidak valid, silakan kembali ke katalog',
-          ORIGIN_NOT_CONFIGURED: 'Pengiriman tidak tersedia, hubungi admin',
-          RATES_UNAVAILABLE: 'Pengiriman tidak dapat dihitung',
-        }
-        return { ok: false, error: messages[ctx.error] ?? 'Terjadi kesalahan' }
+        return { ok: false, error: SHIPPING_ERROR_MESSAGES[ctx.error] ?? 'Terjadi kesalahan' }
       }
       if (ctx.kind !== 'rates') {
         return { ok: false, error: 'Tidak dapat menghitung ongkir' }

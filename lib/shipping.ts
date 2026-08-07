@@ -114,11 +114,13 @@ export async function loadShippingContext(
   // 0. Check client free shipping flag
   const { data: clientRow } = await supabase
     .from('clients')
-    .select('*')
+    .select('has_free_shipping')
     .eq('id', clientId)
     .single()
 
-  if ((clientRow as any)?.has_free_shipping) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const hasFreeShipping = (clientRow as any)?.has_free_shipping === true
+  if (hasFreeShipping) {
     // Load address only (needed for display)
     let addressRow = await supabase
       .from('addresses')
