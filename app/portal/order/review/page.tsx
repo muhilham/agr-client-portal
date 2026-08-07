@@ -15,6 +15,7 @@ import type { RateOption, AddressDisplay, PickupLocation } from '@/lib/shipping'
 
 type RatesState =
   | { kind: 'loading' }
+  | { kind: 'free_shipping'; address: AddressDisplay }
   | { kind: 'ready'; rates: RateOption[]; address: AddressDisplay }
   | { kind: 'no_address' }
   | { kind: 'error'; message: string }
@@ -32,15 +33,17 @@ async function loadShippingRates(
   items: CartItem[],
   setRatesState: React.Dispatch<React.SetStateAction<RatesState>>,
   setSelectedRate: React.Dispatch<React.SetStateAction<RateOption | null>>,
+  setIsManual: React.Dispatch<React.SetStateAction<boolean>>,
   requestIdRef: React.MutableRefObject<number>,
   myRequestId: number
 ) {
   setRatesState({ kind: 'loading' })
   setSelectedRate(null)
+  setIsManual(false)
   const result = await getShippingRates({
     items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
   })
-  if (requestIdRef.current !== myRequestId) return // a newer request superseded this one — ignore
+  if (requestIdRef.current !== myRequestId) return
   if (!result.ok) {
     if (result.error === 'NO_ADDRESS') {
       setRatesState({ kind: 'no_address' })
@@ -56,7 +59,7 @@ async function loadShippingRates(
     return
   }
   if (result.kind === 'free_shipping') {
-    setRatesState({ kind: 'ready', rates: [], address: result.address })
+    setRatesState({ kind: 'free_shipping', address: result.address })
   } else {
     setRatesState({ kind: 'ready', rates: result.rates, address: result.address })
   }
@@ -103,6 +106,7 @@ export default function OrderReviewPage() {
   const [fulfillmentMethod, setFulfillmentMethod] = useState<FulfillmentMethod>('SHIPPING')
   const [ratesState, setRatesState] = useState<RatesState>({ kind: 'loading' })
   const [selectedRate, setSelectedRate] = useState<RateOption | null>(null)
+  const [isManual, setIsManual] = useState(false)
   const [pickupState, setPickupState] = useState<PickupState>({ kind: 'loading' })
   const requestIdRef = useRef(0)
 
@@ -113,38 +117,63 @@ export default function OrderReviewPage() {
     }
     const myRequestId = ++requestIdRef.current
     if (fulfillmentMethod === 'SHIPPING') {
-      loadShippingRates(cart, setRatesState, setSelectedRate, requestIdRef, myRequestId)
+      loadShippingRates(cart, setRatesState, setSelectedRate, setIsManual, requestIdRef, myRequestId)
     } else {
       loadPickupInfo(cart, setPickupState, requestIdRef, myRequestId)
     }
   }, [router, cart, fulfillmentMethod])
 
   const subtotal = cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0)
-  const shippingCost = fulfillmentMethod === 'PICKUP' ? 0 : (selectedRate?.price ?? 0)
+  const shippingCost = fulfillmentMethod === 'PICKUP' ? 0
+    : ratesState.kind === 'free_shipping' ? 0
+    : isManual ? 0
+    : selectedRate?.price ?? 0
+
   const grandTotal = subtotal + shippingCost
 
   const handleConfirm = async () => {
-    if (fulfillmentMethod === 'SHIPPING' && (!selectedRate || ratesState.kind !== 'ready')) return
-    if (fulfillmentMethod === 'PICKUP' && pickupState.kind !== 'ready') return
+    if (fulfillmentMethod === 'SHIPPING') {
+      if (ratesState.kind === 'free_shipping') {
+        // free shipping — proceed
+      } else if (isManual) {
+        // manual — proceed
+      } else if (!selectedRate || ratesState.kind !== 'ready') {
+        return
+      }
+    } else if (fulfillmentMethod === 'PICKUP' && pickupState.kind !== 'ready') {
+      return
+    }
 
     setSubmitting(true)
     setError(null)
+
+    let shippingSelection
+    if (fulfillmentMethod === 'SHIPPING') {
+      if (ratesState.kind === 'free_shipping') {
+        shippingSelection = { mode: 'free' }
+      } else if (isManual) {
+        shippingSelection = { mode: 'manual' }
+      } else if (selectedRate) {
+        shippingSelection = {
+          mode: 'biteship',
+          courier_code: selectedRate.courier_code,
+          service_code: selectedRate.service_code,
+        }
+      }
+    }
 
     const result = await createOrder({
       items: cart.map((i) => ({ productId: i.productId, quantity: i.quantity })),
       notes: notes.trim() || undefined,
       fulfillmentMethod,
-      shippingSelection:
-        fulfillmentMethod === 'SHIPPING' && selectedRate
-          ? { courier_code: selectedRate.courier_code, service_code: selectedRate.service_code }
-          : undefined,
+      shippingSelection,
     })
 
     if (!result.ok) {
       if (result.error === 'Kurir tidak lagi tersedia, silakan pilih ulang') {
         setRatesState({ kind: 'loading' })
         const myRequestId = ++requestIdRef.current
-        loadShippingRates(cart, setRatesState, setSelectedRate, requestIdRef, myRequestId)
+        loadShippingRates(cart, setRatesState, setSelectedRate, setIsManual, requestIdRef, myRequestId)
       }
       setError(result.error)
       setSubmitting(false)
@@ -159,7 +188,7 @@ export default function OrderReviewPage() {
 
   const canSubmit =
     fulfillmentMethod === 'SHIPPING'
-      ? ratesState.kind === 'ready' && selectedRate != null
+      ? ratesState.kind === 'ready' || ratesState.kind === 'free_shipping' || isManual
       : pickupState.kind === 'ready'
 
   const isLoading =
@@ -234,6 +263,22 @@ export default function OrderReviewPage() {
 
           {fulfillmentMethod === 'SHIPPING' && (
             <>
+              {ratesState.kind === 'free_shipping' && (
+                <>
+                  <AddressCard address={ratesState.address} />
+                  <div className="rounded-xl border border-brand-honey bg-[rgba(245,235,201,0.06)] px-5 py-3">
+                    <p className="text-brand-honey text-sm font-medium">Pengiriman Gratis</p>
+                    <p className="text-brand-parchment text-xs">Ongkir ditanggung Agroastery</p>
+                  </div>
+                  <div className="flex items-center justify-between px-1">
+                    <p className="text-brand-parchment text-sm">Ongkir</p>
+                    <p className="text-brand-crema text-sm font-semibold" data-testid="shipping-cost">
+                      Gratis
+                    </p>
+                  </div>
+                </>
+              )}
+
               {ratesState.kind === 'no_address' && <AddressCardEmpty />}
 
               {ratesState.kind === 'error' && (
@@ -242,7 +287,7 @@ export default function OrderReviewPage() {
                   <button
                     onClick={() => {
                       const myRequestId = ++requestIdRef.current
-                      loadShippingRates(cart, setRatesState, setSelectedRate, requestIdRef, myRequestId)
+                      loadShippingRates(cart, setRatesState, setSelectedRate, setIsManual, requestIdRef, myRequestId)
                     }}
                     data-testid="retry-rates-button"
                     className="text-brand-crema text-sm underline underline-offset-4 hover:text-brand-honey transition-colors self-start"
@@ -258,12 +303,31 @@ export default function OrderReviewPage() {
                   <CourierPicker
                     rates={ratesState.rates}
                     selected={selectedRate}
-                    onSelect={setSelectedRate}
+                    onSelect={(rate) => {
+                      setSelectedRate(rate)
+                      setIsManual(false)
+                    }}
                   />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsManual(true)
+                      setSelectedRate(null)
+                    }}
+                    className="text-brand-parchment text-xs underline underline-offset-4 hover:text-brand-honey transition-colors self-start"
+                  >
+                    Kurir tidak tersedia? Gunakan ongkir manual
+                  </button>
+                  {isManual && (
+                    <div className="rounded-xl border border-[rgba(245,235,201,0.25)] bg-brand-midnight px-5 py-3">
+                      <p className="text-brand-parchment text-sm">Ongkir akan dihitung oleh admin</p>
+                      <p className="text-brand-parchment text-xs opacity-70">Silakan lanjutkan pesanan</p>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between px-1">
                     <p className="text-brand-parchment text-sm">Ongkir</p>
                     <p className="text-brand-crema text-sm font-semibold" data-testid="shipping-cost">
-                      {selectedRate ? formatIDR(selectedRate.price) : '—'}
+                      {isManual ? '—' : selectedRate ? formatIDR(selectedRate.price) : '—'}
                     </p>
                   </div>
                 </>
