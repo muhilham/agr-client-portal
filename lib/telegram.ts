@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
-import { PICKUP_COURIER_CODE } from '@/lib/shipping'
+import { PICKUP_COURIER_CODE, FREE_COURIER_CODE, MANUAL_COURIER_CODE } from '@/lib/shipping'
 
 type NotificationItem = {
   name: string
@@ -58,16 +58,27 @@ export async function sendOrderNotification(payload: OrderNotificationPayload): 
       `💰 <b>Subtotal: ${formatIDR(totalAmount)}</b>`,
     ]
 
-    if (shippingCost != null) {
-      if (shippingCourier === PICKUP_COURIER_CODE) {
-        lines.push(`📦 <b>Ambil Sendiri</b>`)
-      } else {
-        lines.push(`🚚 <b>Ongkir: ${formatIDR(shippingCost)}</b> ${shippingCourier && shippingService ? `(${escapeHtml(shippingCourier)} — ${escapeHtml(shippingService)})` : ''}`)
-      }
-      lines.push(``)
+    // Shipping line — always show method, conditionally show cost
+    if (shippingCourier === PICKUP_COURIER_CODE) {
+      lines.push(`📦 <b>Ambil Sendiri</b>`)
+    } else if (shippingCourier === FREE_COURIER_CODE) {
+      lines.push(`🚚 <b>Pengiriman: Gratis</b>`)
+    } else if (shippingCourier === MANUAL_COURIER_CODE) {
+      lines.push(`🚚 <b>Pengiriman: Manual (admin)</b>`)
+    } else if (shippingCourier && shippingCost != null) {
+      lines.push(`🚚 <b>Ongkir: ${formatIDR(shippingCost)}</b> ${shippingService ? `(${escapeHtml(shippingCourier)} — ${escapeHtml(shippingService)})` : `(${escapeHtml(shippingCourier)})`}`)
+    }
+
+    // Total line
+    lines.push(``)
+    if (shippingCourier === PICKUP_COURIER_CODE || shippingCourier === FREE_COURIER_CODE) {
+      lines.push(`💰 <b>Total: ${formatIDR(totalAmount)}</b>`)
+    } else if (shippingCourier === MANUAL_COURIER_CODE) {
+      lines.push(`💰 <b>Subtotal: ${formatIDR(totalAmount)}</b>`)
+      lines.push(`💰 <b>Total: ${formatIDR(totalAmount)}</b> (ongkir belum dihitung)`)
+    } else if (shippingCost != null) {
       lines.push(`💰 <b>Total: ${formatIDR(totalAmount + shippingCost)}</b>`)
     } else {
-      lines.push(``)
       lines.push(`💰 <b>Total: ${formatIDR(totalAmount)}</b>`)
     }
 

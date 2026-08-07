@@ -6,7 +6,8 @@ import { getShippingRatesInputSchema } from '@/lib/schemas/order'
 import { loadShippingContext, groupRatesByCourier, type AddressDisplay, type RateOption } from '@/lib/shipping'
 
 export type ShippingRatesResult =
-  | { ok: true; rates: RateOption[]; address: AddressDisplay }
+  | { ok: true; kind: 'free_shipping'; address: AddressDisplay }
+  | { ok: true; kind: 'rates'; rates: RateOption[]; address: AddressDisplay }
   | { ok: false; error: 'NO_ADDRESS' | 'INVALID_CART' | 'ORIGIN_NOT_CONFIGURED' | 'RATES_UNAVAILABLE' | 'INVALID_INPUT' }
 
 export async function getShippingRates(input: unknown): Promise<ShippingRatesResult> {
@@ -41,7 +42,11 @@ export async function getShippingRates(input: unknown): Promise<ShippingRatesRes
     return { ok: false, error: ctx.error }
   }
 
+  if (ctx.kind === 'free_shipping') {
+    return { ok: true, kind: 'free_shipping', address: ctx.address }
+  }
+
   const rates = groupRatesByCourier(ctx.rates)
 
-  return { ok: true, rates, address: ctx.address }
+  return { ok: true, kind: 'rates', rates, address: ctx.address }
 }

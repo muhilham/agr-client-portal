@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 export async function seedClientWithDefaultAddress({
   email,
   addressOverrides = {},
+  hasFreeShipping = false,
 }: {
   email: string
   addressOverrides?: Partial<{
@@ -12,6 +13,7 @@ export async function seedClientWithDefaultAddress({
     postal_code: string
     is_default: boolean
   }>
+  hasFreeShipping?: boolean
 }) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -38,4 +40,8 @@ export async function seedClientWithDefaultAddress({
     postal_code: addressOverrides.postal_code ?? '12345',
     is_default: addressOverrides.is_default ?? true,
   })
+
+  if (hasFreeShipping) {
+    await supabase.from('clients').update({ has_free_shipping: true }).eq('id', client.id)
+  }
 }

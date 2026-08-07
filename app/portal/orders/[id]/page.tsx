@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { FulfillmentBadge } from '@/components/FulfillmentBadge'
 import { PaymentBadge } from '@/components/PaymentBadge'
 import { DownloadInvoiceButton } from './_components/DownloadInvoiceButton'
-import { isPickupOrder } from '@/lib/shipping'
+import { isPickupOrder, FREE_COURIER_CODE, MANUAL_COURIER_CODE } from '@/lib/shipping'
 
 export const dynamic = 'force-dynamic'
 
@@ -128,7 +128,40 @@ export default async function OrderDetailPage({ params }: Props) {
           </div>
         </div>
 
-        {!isPickupOrder(order) && order.shipping_cost != null && (
+        {order.shipping_courier === FREE_COURIER_CODE && (
+          <section data-testid="order-shipping-section">
+            <div className="rounded-xl border border-[rgba(245,235,201,0.25)] bg-brand-midnight overflow-hidden">
+              <div className="px-5 py-3 border-b border-[rgba(245,235,201,0.15)]">
+                <p className="text-brand-parchment text-xs uppercase tracking-wider">Pengiriman</p>
+              </div>
+              <div className="px-5 py-4 flex flex-col gap-1">
+                <p className="text-brand-honey text-sm font-medium" data-testid="order-shipping-courier">
+                  Pengiriman Gratis
+                </p>
+                <p className="text-brand-parchment text-xs" data-testid="order-shipping-cost">
+                  Ongkir: Rp 0
+                </p>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {order.shipping_courier === MANUAL_COURIER_CODE && (
+          <section data-testid="order-shipping-section">
+            <div className="rounded-xl border border-[rgba(245,235,201,0.25)] bg-brand-midnight overflow-hidden">
+              <div className="px-5 py-3 border-b border-[rgba(245,235,201,0.15)]">
+                <p className="text-brand-parchment text-xs uppercase tracking-wider">Pengiriman</p>
+              </div>
+              <div className="px-5 py-4 flex flex-col gap-1">
+                <p className="text-brand-parchment text-sm" data-testid="order-shipping-courier">
+                  Pengiriman Manual (dihitung admin)
+                </p>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {!isPickupOrder(order) && order.shipping_courier !== FREE_COURIER_CODE && order.shipping_courier !== MANUAL_COURIER_CODE && order.shipping_cost != null && (
           <section data-testid="order-shipping-section">
             <div className="rounded-xl border border-[rgba(245,235,201,0.25)] bg-brand-midnight overflow-hidden">
               <div className="px-5 py-3 border-b border-[rgba(245,235,201,0.15)]">
@@ -189,7 +222,13 @@ export default async function OrderDetailPage({ params }: Props) {
           >
             Buat Pesanan Baru
           </Link>
-          <DownloadInvoiceButton orderId={order.id} orderNumber={order.order_number} />
+          {order.shipping_courier === MANUAL_COURIER_CODE && order.shipping_cost == null ? (
+            <div className="rounded-lg bg-brand-midnight border border-brand-parchment/25 px-4 py-3 text-brand-parchment text-sm text-center">
+              Invoice tersedia setelah admin menghitung biaya pengiriman.
+            </div>
+          ) : (
+            <DownloadInvoiceButton orderId={order.id} orderNumber={order.order_number} />
+          )}
           <Link
             href="/portal/orders"
             data-testid="back-to-orders-button"
