@@ -1,5 +1,39 @@
 # Changelog
 
+## [0.5.0](https://github.com/muhilham/agr-client-portal/compare/v0.4.0...v0.5.0) (2026-08-07)
+
+
+### Features
+
+* **orders:** add FulfillmentToggle and PickupInfoCard components ([99c63cf](https://github.com/muhilham/agr-client-portal/commit/99c63cf5ef80d64c202d54f91056414eb757d8ad))
+* **orders:** add getPickupInfo server action ([d391b9b](https://github.com/muhilham/agr-client-portal/commit/d391b9b273c8a2f84c339843cdf578acd941ae8b))
+* **orders:** add pickup discriminator, cart validation extraction, and schema ([35ddfc2](https://github.com/muhilham/agr-client-portal/commit/35ddfc2c3276030242af0afaa05c1eb86213a17a))
+* **orders:** branch order creation on pickup vs shipping ([e5e82cc](https://github.com/muhilham/agr-client-portal/commit/e5e82cc93cfc3fae82dfa9b2c1dc843785ebd36b))
+* **orders:** show pickup label in Telegram order notification ([5f3aff9](https://github.com/muhilham/agr-client-portal/commit/5f3aff95aab32073bc1689c120b5d4c165bf58c9))
+* **orders:** show pickup section on order detail page ([e4c0eec](https://github.com/muhilham/agr-client-portal/commit/e4c0eecf122480c3feda48bed2e231cc0489f490))
+* **orders:** wire fulfillment toggle into order review page ([6f30786](https://github.com/muhilham/agr-client-portal/commit/6f30786f803759e174b4231c5da53952ff31ab54))
+
+
+### Bug Fixes
+
+* **orders:** make invoice address optional for pickup orders ([9581f3e](https://github.com/muhilham/agr-client-portal/commit/9581f3e7db7a5f71d84bd3fc9d830278d67e3814))
+* **orders:** resolve lint warnings in review page and e2e tests ([77b9240](https://github.com/muhilham/agr-client-portal/commit/77b92408a15670ba3b554ffdf09cfc34215509ee))
+
+
+### Tests
+
+* **orders:** add E2E coverage for pickup order submission, detail, and zero-address invoice ([e9a9a80](https://github.com/muhilham/agr-client-portal/commit/e9a9a8060bc61cb08c00f6444ffd8eb539eb2f38))
+
+
+### Documentation
+
+* **orders:** add self-pickup order design spec ([dc24915](https://github.com/muhilham/agr-client-portal/commit/dc24915856771edeb6b97e6a16eee938cca2c2e8))
+* **orders:** add self-pickup order implementation plan ([36d7273](https://github.com/muhilham/agr-client-portal/commit/36d727367cd9a44e2d30d44d946a110df7167885))
+* **orders:** address code review feedback on self-pickup spec ([0a7e9a6](https://github.com/muhilham/agr-client-portal/commit/0a7e9a6b37bcafc917cd73117b41edad62dbcd52))
+* **orders:** clarify order-number generation shared by both branches ([d028f01](https://github.com/muhilham/agr-client-portal/commit/d028f0175c76d427c004085a929f57a5bfbf1081))
+* **orders:** make pickup contact_phone optional with fallback ([af3c6aa](https://github.com/muhilham/agr-client-portal/commit/af3c6aa82567e02ce24550eaa69ebb1dfc1667a1))
+* updated agent skill for codex ([f501477](https://github.com/muhilham/agr-client-portal/commit/f501477e294ae85fe406e3c2b23a9cffe9dd976e))
+
 ## [0.4.0](https://github.com/muhilham/agr-client-portal/compare/v0.3.0...v0.4.0) (2026-05-07)
 
 
