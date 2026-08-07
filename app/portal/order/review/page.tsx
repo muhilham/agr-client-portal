@@ -55,7 +55,11 @@ async function loadShippingRates(
     }
     return
   }
-  setRatesState({ kind: 'ready', rates: result.rates, address: result.address })
+  if (result.kind === 'free_shipping') {
+    setRatesState({ kind: 'ready', rates: [], address: result.address })
+  } else {
+    setRatesState({ kind: 'ready', rates: result.rates, address: result.address })
+  }
 }
 
 async function loadPickupInfo(
