@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0](https://github.com/muhilham/agr-client-portal/compare/v0.6.0...v0.7.0) (2026-08-27)
+
+
+### Features
+
+* **telegram:** route notifications to thread topic ([2f3c551](https://github.com/muhilham/agr-client-portal/commit/2f3c55118c3a922dc2ca552065d6349fbcdb3f94))
+
 ## [0.6.0](https://github.com/muhilham/agr-client-portal/compare/v0.5.0...v0.6.0) (2026-08-07)
 
 
