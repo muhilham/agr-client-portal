@@ -86,6 +86,7 @@ export async function sendOrderNotification(payload: OrderNotificationPayload): 
 
     const botToken = process.env.TELEGRAM_BOT_TOKEN
     const groupId = process.env.TELEGRAM_ORDER_GROUP_ID
+    const threadId = process.env.TELEGRAM_PRODUCTION_THREAD_ID
     const supabase = await createClient()
 
     if (!botToken || !groupId) {
@@ -117,6 +118,7 @@ export async function sendOrderNotification(payload: OrderNotificationPayload): 
             chat_id: groupId,
             text: message,
             parse_mode: 'HTML',
+            ...(threadId ? { message_thread_id: threadId } : {}),
           }),
         }
       )
