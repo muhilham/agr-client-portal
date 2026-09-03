@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.1](https://github.com/muhilham/agr-client-portal/compare/v0.7.0...v0.7.1) (2026-09-03)
+
+
+### Bug Fixes
+
+* **shipping:** totalize per-line weight for Biteship rate queries ([#10](https://github.com/muhilham/agr-client-portal/issues/10)) ([f42f303](https://github.com/muhilham/agr-client-portal/commit/f42f30367b1340ec36bc855f1535dbcb717e2b85))
+
 ## [0.7.0](https://github.com/muhilham/agr-client-portal/compare/v0.6.0...v0.7.0) (2026-08-27)
 
 
