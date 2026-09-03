@@ -32,7 +32,7 @@ export async function GET(
   const { data: order } = await supabase
     .from('orders')
     .select(
-      'id, order_number, total_amount, shipping_cost, shipping_courier, created_at, order_items (product_name, unit_price, quantity, subtotal)'
+      'id, order_number, total_amount, shipping_cost, shipping_courier, shipping_address, created_at, order_items (product_name, unit_price, quantity, subtotal)'
     )
     .eq('id', id)
     .single()
@@ -46,18 +46,27 @@ export async function GET(
   let address: { recipient_name: string; address_line: string; postal_code: string } | undefined
 
   if (!isPickup) {
-    const admin = getSupabaseAdmin()
-    const { data: addresses } = await admin
-      .from('addresses')
-      .select('recipient_name, address_line, postal_code, is_default')
-      .eq('client_id', client.id)
+    const snapshot = order.shipping_address as {
+      recipient_name: string
+      address_line: string
+      postal_code: string
+    } | null
+    address = snapshot ?? undefined
 
-    const found = (addresses ?? []).find((a) => a.is_default) ?? (addresses ?? [])[0]
+    if (!address) {
+      const admin = getSupabaseAdmin()
+      const { data: addresses } = await admin
+        .from('addresses')
+        .select('recipient_name, address_line, postal_code, is_default')
+        .eq('client_id', client.id)
 
-    if (!found) {
-      return NextResponse.json({ error: 'Address not found' }, { status: 404 })
+      const found = (addresses ?? []).find((a) => a.is_default) ?? (addresses ?? [])[0]
+
+      if (!found) {
+        return NextResponse.json({ error: 'Address not found' }, { status: 404 })
+      }
+      address = found
     }
-    address = found
   }
 
   const items = (order.order_items as Array<{
