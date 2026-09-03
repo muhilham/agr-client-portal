@@ -209,12 +209,15 @@ export async function loadShippingContext(
     return { ok: false, error: 'ORIGIN_NOT_CONFIGURED' }
   }
 
-  // 4. Build Biteship items
+  // 4. Build Biteship items — totalized per line (weight = per-unit grams x qty,
+  //    quantity collapsed to 1). Pos Indonesia's calculator on Biteship's side
+  //    ignores per-line quantity and rates only `weight`, so per-unit weights
+  //    underquote multi-quantity orders. Other couriers price identically either way.
   const biteshipItems = validatedItems.map((i) => ({
     name: i.productName,
-    value: i.unitPrice,
-    weight: i.shipWeightGrams,
-    quantity: i.quantity,
+    value: i.subtotal,
+    weight: i.shipWeightGrams * i.quantity,
+    quantity: 1,
   }))
 
   // 5. Call rates (dynamic couriers with fallback)
