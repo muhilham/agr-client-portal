@@ -5,6 +5,7 @@ import { getActiveClientByEmail } from '@/lib/clients/active-client'
 import { createOrderInputSchema } from '@/lib/schemas/order'
 import {
   loadShippingContext,
+  resolveDefaultAddress,
   findRateMatch,
   validateCartItems,
   getPickupLocation,
@@ -12,6 +13,7 @@ import {
   FREE_COURIER_CODE,
   MANUAL_COURIER_CODE,
   type ValidatedItem,
+  type ShippingAddressSnapshot,
 } from '@/lib/shipping'
 import { sendOrderNotification } from '@/lib/telegram'
 
@@ -47,6 +49,7 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
   let dbShippingEtd: string | null
   let notifShippingCourier: string | undefined
   let notifShippingService: string | undefined
+  let shippingAddress: ShippingAddressSnapshot | null = null
 
   if (parsed.data.fulfillmentMethod === 'PICKUP') {
     const itemsResult = await validateCartItems(client.id, parsed.data.items)
@@ -99,6 +102,7 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
       dbShippingEtd = null
       notifShippingCourier = 'Gratis'
       notifShippingService = undefined
+      shippingAddress = ctx.address
 
     } else if (shippingSelection.mode === 'manual') {
       const itemsResult = await validateCartItems(client.id, parsed.data.items)
@@ -112,6 +116,7 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
       dbShippingEtd = null
       notifShippingCourier = 'Manual (admin)'
       notifShippingService = undefined
+      shippingAddress = await resolveDefaultAddress(client.id)
 
     } else {
       // biteship (discriminated union guarantees this is the only remaining mode)
@@ -142,6 +147,7 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
       dbShippingEtd = match.duration
       notifShippingCourier = match.courier_name
       notifShippingService = match.courier_service_name
+      shippingAddress = ctx.address
     }
   }
 
@@ -173,6 +179,7 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
         shipping_courier: dbShippingCourier,
         shipping_service: dbShippingService,
         shipping_etd: dbShippingEtd,
+        shipping_address: shippingAddress,
       })
       .select('id, order_number')
       .single()

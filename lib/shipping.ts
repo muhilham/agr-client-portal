@@ -24,6 +24,8 @@ export interface AddressDisplay {
   postal_code: string
 }
 
+export type ShippingAddressSnapshot = AddressDisplay & { backfilled?: boolean }
+
 export interface RateOption {
   courier_code: string
   courier_name: string
@@ -105,6 +107,42 @@ export type ShippingContext =
   | { ok: true; kind: 'rates'; address: AddressDisplay; originLocation: BiteshipLocation; rates: BiteshipRate[]; validatedItems: ValidatedItem[] }
   | { ok: false; error: 'NO_ADDRESS' | 'INVALID_CART' | 'ORIGIN_NOT_CONFIGURED' | 'RATES_UNAVAILABLE' }
 
+export async function resolveDefaultAddress(clientId: string): Promise<AddressDisplay | null> {
+  const supabase = getSupabaseAdmin()
+
+  let addressRow = await supabase
+    .from('addresses')
+    .select('recipient_name, address_line, postal_code')
+    .eq('client_id', clientId)
+    .eq('is_default', true)
+    .maybeSingle()
+    .then(({ data, error }) => {
+      if (error) {
+        console.error('[Shipping] address query error:', error)
+        return null
+      }
+      return data
+    })
+
+  if (!addressRow) {
+    addressRow = await supabase
+      .from('addresses')
+      .select('recipient_name, address_line, postal_code')
+      .eq('client_id', clientId)
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => data ?? null)
+  }
+
+  if (!addressRow) return null
+
+  return {
+    recipient_name: addressRow.recipient_name,
+    address_line: addressRow.address_line,
+    postal_code: addressRow.postal_code,
+  }
+}
+
 export async function loadShippingContext(
   clientId: string,
   items: { productId: string; quantity: number }[]
@@ -121,74 +159,22 @@ export async function loadShippingContext(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const hasFreeShipping = (clientRow as any)?.has_free_shipping === true
   if (hasFreeShipping) {
-    // Load address only (needed for display)
-    let addressRow = await supabase
-      .from('addresses')
-      .select('recipient_name, address_line, postal_code')
-      .eq('client_id', clientId)
-      .eq('is_default', true)
-      .maybeSingle()
-      .then(({ data }) => data ?? null)
-
-    if (!addressRow) {
-      addressRow = await supabase
-        .from('addresses')
-        .select('recipient_name, address_line, postal_code')
-        .eq('client_id', clientId)
-        .limit(1)
-        .maybeSingle()
-        .then(({ data }) => data ?? null)
-    }
-
-    if (!addressRow) {
+    const address = await resolveDefaultAddress(clientId)
+    if (!address) {
       return { ok: false, error: 'NO_ADDRESS' }
     }
 
     return {
       ok: true,
       kind: 'free_shipping',
-      address: {
-        recipient_name: addressRow.recipient_name,
-        address_line: addressRow.address_line,
-        postal_code: addressRow.postal_code,
-      },
+      address,
     }
   }
 
   // 1. Default address (fallback to any address if no default)
-  let addressRow = await supabase
-    .from('addresses')
-    .select('recipient_name, address_line, postal_code')
-    .eq('client_id', clientId)
-    .eq('is_default', true)
-    .maybeSingle()
-    .then(({ data, error }) => {
-      if (error) {
-        console.error('[Shipping] address query error:', error)
-        return null
-      }
-      return data
-    })
-
-  if (!addressRow) {
-    // Fallback: use any address for this client
-    addressRow = await supabase
-      .from('addresses')
-      .select('recipient_name, address_line, postal_code')
-      .eq('client_id', clientId)
-      .limit(1)
-      .maybeSingle()
-      .then(({ data }) => data ?? null)
-  }
-
-  if (!addressRow) {
+  const address = await resolveDefaultAddress(clientId)
+  if (!address) {
     return { ok: false, error: 'NO_ADDRESS' }
-  }
-
-  const address: AddressDisplay = {
-    recipient_name: addressRow.recipient_name,
-    address_line: addressRow.address_line,
-    postal_code: addressRow.postal_code,
   }
 
   // 2. Items

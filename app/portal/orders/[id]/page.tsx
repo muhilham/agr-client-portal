@@ -30,7 +30,7 @@ export default async function OrderDetailPage({ params }: Props) {
   const { data: order } = await supabase
     .from('orders')
     .select(`
-      id, order_number, fulfillment_status, payment_status, total_amount, shipping_cost, shipping_courier, shipping_service, shipping_etd, notes, created_at, updated_at,
+      id, order_number, fulfillment_status, payment_status, total_amount, shipping_cost, shipping_courier, shipping_service, shipping_etd, shipping_address, notes, created_at, updated_at,
       order_items (id, product_name, unit_price, quantity, subtotal)
     `)
     .eq('id', id)
@@ -38,6 +38,12 @@ export default async function OrderDetailPage({ params }: Props) {
 
   // RLS ensures clients can only fetch their own orders
   if (!order) notFound()
+
+  const shippingAddress = order.shipping_address as {
+    recipient_name: string
+    address_line: string
+    postal_code: string
+  } | null
 
   const fmt = new Intl.DateTimeFormat('id-ID', {
     timeZone: 'Asia/Jakarta',
@@ -197,6 +203,21 @@ export default async function OrderDetailPage({ params }: Props) {
                 <p data-testid="order-pickup-note" className="text-brand-crema text-sm">
                   Ambil Sendiri di lokasi gudang Agroastery
                 </p>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {!isPickupOrder(order) && shippingAddress && (
+          <section data-testid="order-shipping-address">
+            <div className="rounded-xl border border-[rgba(245,235,201,0.25)] bg-brand-midnight overflow-hidden">
+              <div className="px-5 py-3 border-b border-[rgba(245,235,201,0.15)]">
+                <p className="text-brand-parchment text-xs uppercase tracking-wider">Alamat Pengiriman</p>
+              </div>
+              <div className="px-5 py-4 flex flex-col gap-1">
+                <p className="text-brand-crema text-sm font-medium">{shippingAddress.recipient_name}</p>
+                <p className="text-brand-crema text-sm">{shippingAddress.address_line}</p>
+                <p className="text-brand-parchment text-sm">{shippingAddress.postal_code}</p>
               </div>
             </div>
           </section>
