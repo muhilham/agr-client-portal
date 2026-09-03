@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { getClientAccessByEmail } from '@/lib/clients/active-client'
 import { NextRequest, NextResponse } from 'next/server'
 
 export async function GET(request: NextRequest) {
@@ -17,13 +18,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL('/auth/unauthorized', siteUrl))
   }
 
-  const { data: client } = await supabase
-    .from('clients')
-    .select('id, is_active')
-    .eq('email', user.email)
-    .single()
+  const clientAccess = await getClientAccessByEmail(user.email)
+  if (clientAccess.status === 'inactive') {
+    return NextResponse.redirect(new URL('/auth/unauthorized?state=inactive', siteUrl))
+  }
 
-  if (!client || !client.is_active) {
+  if (clientAccess.status === 'unregistered') {
     return NextResponse.redirect(new URL('/auth/unauthorized', siteUrl))
   }
 

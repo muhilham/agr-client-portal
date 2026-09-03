@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getSupabaseAdmin } from '@/lib/supabase/admin'
+import { getActiveClientByEmail } from '@/lib/clients/active-client'
 import { isPickupOrder, MANUAL_COURIER_CODE } from '@/lib/shipping'
 import { type InvoiceData } from '@/lib/invoice/document'
 import { renderInvoicePDF } from '@/lib/invoice/render'
@@ -20,6 +21,14 @@ export async function GET(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
+  const client = await getActiveClientByEmail(user.email)
+  if (!client) {
+    return NextResponse.json(
+      { error: 'Akun Anda tidak aktif. Hubungi tim Agroastery.' },
+      { status: 403 }
+    )
+  }
+
   const { data: order } = await supabase
     .from('orders')
     .select(
@@ -30,16 +39,6 @@ export async function GET(
 
   if (!order) {
     return NextResponse.json({ error: 'Order not found' }, { status: 404 })
-  }
-
-  const { data: client } = await supabase
-    .from('clients')
-    .select('id, name')
-    .eq('email', user.email)
-    .single()
-
-  if (!client) {
-    return NextResponse.json({ error: 'Client not found' }, { status: 404 })
   }
 
   const isPickup = isPickupOrder(order)

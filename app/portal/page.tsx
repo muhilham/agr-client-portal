@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { getCatalogForClient } from '@/lib/catalog'
+import { getClientAccessByEmail } from '@/lib/clients/active-client'
 import { redirect } from 'next/navigation'
 import CatalogView from './_components/CatalogView'
 
@@ -11,13 +12,11 @@ export default async function PortalPage() {
 
   if (!user?.email) redirect('/')
 
-  const { data: client } = await supabase
-    .from('clients')
-    .select('id, name, company_name')
-    .eq('email', user.email)
-    .single()
+  const clientAccess = await getClientAccessByEmail(user.email)
+  if (clientAccess.status === 'inactive') redirect('/auth/unauthorized?state=inactive')
+  if (clientAccess.status === 'unregistered') redirect('/auth/unauthorized')
 
-  if (!client) redirect('/auth/unauthorized')
+  const { client } = clientAccess
 
   const catalog = await getCatalogForClient(client.id)
 

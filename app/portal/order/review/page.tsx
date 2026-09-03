@@ -53,6 +53,7 @@ async function loadShippingRates(
         ORIGIN_NOT_CONFIGURED: 'Pengiriman tidak tersedia, hubungi admin',
         RATES_UNAVAILABLE: 'Tidak dapat menghitung ongkir saat ini',
         INVALID_INPUT: 'Permintaan tidak valid',
+        ACCOUNT_INACTIVE: 'Akun Anda tidak aktif. Hubungi tim Agroastery.',
       }
       setRatesState({ kind: 'error', message: messages[result.error] ?? 'Terjadi kesalahan' })
     }
@@ -81,6 +82,7 @@ async function loadPickupInfo(
       INVALID_CART: 'Isi keranjang tidak valid, silakan kembali ke katalog',
       ORIGIN_NOT_CONFIGURED: 'Pengambilan tidak tersedia, hubungi admin',
       INVALID_INPUT: 'Permintaan tidak valid',
+      ACCOUNT_INACTIVE: 'Akun Anda tidak aktif. Hubungi tim Agroastery.',
     }
     setPickupState({ kind: 'error', message: messages[result.error] ?? 'Terjadi kesalahan' })
     return

@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { FulfillmentBadge } from '@/components/FulfillmentBadge'
 import { PaymentBadge } from '@/components/PaymentBadge'
 import LogoutButton from '@/app/portal/_components/LogoutButton'
+import { getClientAccessByEmail } from '@/lib/clients/active-client'
 
 export const dynamic = 'force-dynamic'
 
@@ -15,13 +16,11 @@ export default async function OrdersPage() {
 
   if (!user?.email) redirect('/')
 
-  const { data: client } = await supabase
-    .from('clients')
-    .select('id')
-    .eq('email', user.email)
-    .single()
+  const clientAccess = await getClientAccessByEmail(user.email)
+  if (clientAccess.status === 'inactive') redirect('/auth/unauthorized?state=inactive')
+  if (clientAccess.status === 'unregistered') redirect('/auth/unauthorized')
 
-  if (!client) redirect('/auth/unauthorized')
+  const { client } = clientAccess
 
   const { data: orders } = await supabase
     .from('orders')

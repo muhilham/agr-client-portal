@@ -1,7 +1,7 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { getSupabaseAdmin } from '@/lib/supabase/admin'
+import { getActiveClientByEmail } from '@/lib/clients/active-client'
 import { createOrderInputSchema } from '@/lib/schemas/order'
 import {
   loadShippingContext,
@@ -35,15 +35,9 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
     throw new Error('Unauthenticated')
   }
 
-  const admin = getSupabaseAdmin()
-  const { data: client } = await admin
-    .from('clients')
-    .select('id, name')
-    .eq('email', user.email)
-    .single()
-
+  const client = await getActiveClientByEmail(user.email)
   if (!client) {
-    throw new Error('Client not found')
+    return { ok: false, error: 'Akun Anda tidak aktif. Hubungi tim Agroastery.' }
   }
 
   let orderItems: ValidatedItem[]
