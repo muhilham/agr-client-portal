@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.7.2](https://github.com/muhilham/agr-client-portal/compare/v0.7.1...v0.7.2) (2026-09-03)
+
+
+### Bug Fixes
+
+* **auth:** enforce clients.is_active on all portal surfaces ([#29](https://github.com/muhilham/agr-client-portal/issues/29)) ([802672b](https://github.com/muhilham/agr-client-portal/commit/802672bf7dd351d8f6e3b9e67e23fcca9f43dbb2))
+* **ux:** clamp below-min quantity with visible hint instead of silent reset ([#31](https://github.com/muhilham/agr-client-portal/issues/31)) ([a9722e1](https://github.com/muhilham/agr-client-portal/commit/a9722e149ecfaf854adced0ceb9465856a8b5e4f))
+
 ## [0.7.1](https://github.com/muhilham/agr-client-portal/compare/v0.7.0...v0.7.1) (2026-09-03)
 
 
