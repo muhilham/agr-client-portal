@@ -5,6 +5,7 @@ import { FulfillmentBadge } from '@/components/FulfillmentBadge'
 import { PaymentBadge } from '@/components/PaymentBadge'
 import { DownloadInvoiceButton } from './_components/DownloadInvoiceButton'
 import { isPickupOrder, FREE_COURIER_CODE, MANUAL_COURIER_CODE } from '@/lib/shipping'
+import { getClientAccessByEmail } from '@/lib/clients/active-client'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,6 +22,10 @@ export default async function OrderDetailPage({ params }: Props) {
   } = await supabase.auth.getUser()
 
   if (!user?.email) redirect('/')
+
+  const clientAccess = await getClientAccessByEmail(user.email)
+  if (clientAccess.status === 'inactive') redirect('/auth/unauthorized?state=inactive')
+  if (clientAccess.status === 'unregistered') redirect('/auth/unauthorized')
 
   const { data: order } = await supabase
     .from('orders')
