@@ -1,7 +1,14 @@
 import Link from 'next/link'
 import Image from 'next/image'
 
-export default function UnauthorizedPage() {
+export default async function UnauthorizedPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ state?: string }>
+}) {
+  const { state } = await searchParams
+  const isInactive = state === 'inactive'
+
   return (
     <main className="min-h-screen bg-brand-black flex flex-col items-center justify-center px-4">
       <div className="w-full max-w-sm flex flex-col items-center gap-8 text-center">
@@ -16,8 +23,9 @@ export default function UnauthorizedPage() {
           <div className="text-4xl">🔒</div>
           <h2 className="text-lg font-medium text-brand-crema">Akses Ditolak</h2>
           <p className="text-sm text-brand-parchment leading-relaxed">
-            Akun Anda belum terdaftar sebagai klien Agroastery, atau akun Anda
-            tidak aktif.
+            {isInactive
+              ? 'Akun Anda tidak aktif. Hubungi tim Agroastery.'
+              : 'Akun Anda belum terdaftar sebagai klien Agroastery, atau akun Anda tidak aktif.'}
           </p>
           <p className="text-sm text-brand-parchment leading-relaxed">
             Hubungi tim kami untuk mendapatkan akses:

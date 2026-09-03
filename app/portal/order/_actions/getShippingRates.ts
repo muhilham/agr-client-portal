@@ -1,14 +1,14 @@
 'use server'
 
 import { createClient } from '@/lib/supabase/server'
-import { getSupabaseAdmin } from '@/lib/supabase/admin'
+import { getActiveClientByEmail } from '@/lib/clients/active-client'
 import { getShippingRatesInputSchema } from '@/lib/schemas/order'
 import { loadShippingContext, groupRatesByCourier, type AddressDisplay, type RateOption } from '@/lib/shipping'
 
 export type ShippingRatesResult =
   | { ok: true; kind: 'free_shipping'; address: AddressDisplay }
   | { ok: true; kind: 'rates'; rates: RateOption[]; address: AddressDisplay }
-  | { ok: false; error: 'NO_ADDRESS' | 'INVALID_CART' | 'ORIGIN_NOT_CONFIGURED' | 'RATES_UNAVAILABLE' | 'INVALID_INPUT' }
+  | { ok: false; error: 'NO_ADDRESS' | 'INVALID_CART' | 'ORIGIN_NOT_CONFIGURED' | 'RATES_UNAVAILABLE' | 'INVALID_INPUT' | 'ACCOUNT_INACTIVE' }
 
 export async function getShippingRates(input: unknown): Promise<ShippingRatesResult> {
   const parsed = getShippingRatesInputSchema.safeParse(input)
@@ -25,15 +25,9 @@ export async function getShippingRates(input: unknown): Promise<ShippingRatesRes
     throw new Error('Unauthenticated')
   }
 
-  const admin = getSupabaseAdmin()
-  const { data: client } = await admin
-    .from('clients')
-    .select('id')
-    .eq('email', user.email)
-    .single()
-
+  const client = await getActiveClientByEmail(user.email)
   if (!client) {
-    throw new Error('Client not found')
+    return { ok: false, error: 'ACCOUNT_INACTIVE' }
   }
 
   const ctx = await loadShippingContext(client.id, parsed.data.items)
