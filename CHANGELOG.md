@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/muhilham/agr-client-portal/compare/v0.7.2...v0.8.0) (2026-09-03)
+
+
+### Features
+
+* **orders:** snapshot shipping address at checkout into order record ([#32](https://github.com/muhilham/agr-client-portal/issues/32)) ([8ef298e](https://github.com/muhilham/agr-client-portal/commit/8ef298ef3ea1ce70f2a1d24e7b671f1905313c86))
+
 ## [0.7.2](https://github.com/muhilham/agr-client-portal/compare/v0.7.1...v0.7.2) (2026-09-03)
 
 
