@@ -1,26 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-
-const AGROASTERY_WA = '6281288888993' // TODO: move to env
-
-const BANK_ACCOUNTS = [
-  { bank: 'Bank BCA', account: '0657237047', a_n: 'Muhammad Ilham' },
-  { bank: 'Bank Mandiri', account: '1270009924133', a_n: 'Muhammad Ilham' },
-]
-
-function formatIDR(amount: number) {
-  return `Rp ${Number(amount).toLocaleString('id-ID')}`
-}
-
-function buildWhatsAppMessage(opts: {
-  orderNumber: string
-  recipientName: string
-  grandTotal: number
-}) {
-  const text = `Hi Agroastery, saya sudah transfer untuk pesanan ${opts.orderNumber} atas nama ${opts.recipientName}. Total ${formatIDR(opts.grandTotal)}. Mohon dicek dan diproses. Terima kasih!`
-  return encodeURIComponent(text)
-}
+import {
+  BANK_ACCOUNTS,
+  formatIDR,
+  getWhatsAppUrl,
+} from '@/lib/payment'
 
 export function PaymentCard({
   orderNumber,
@@ -34,13 +19,29 @@ export function PaymentCard({
   const [copied, setCopied] = useState<string | null>(null)
 
   function copy(account: string) {
+    if (!navigator.clipboard) {
+      // Fallback for non-secure contexts
+      const el = document.createElement('textarea')
+      el.value = account
+      el.style.position = 'fixed'
+      el.style.opacity = '0'
+      document.body.appendChild(el)
+      el.select()
+      document.execCommand('copy')
+      document.body.removeChild(el)
+      setCopied(account)
+      setTimeout(() => setCopied(null), 1500)
+      return
+    }
     navigator.clipboard.writeText(account).then(() => {
       setCopied(account)
       setTimeout(() => setCopied(null), 1500)
+    }).catch(() => {
+      // Silently fail — copy is best-effort, not critical
     })
   }
 
-  const waUrl = `https://wa.me/${AGROASTERY_WA}?text=${buildWhatsAppMessage({ orderNumber, recipientName, grandTotal })}`
+  const waUrl = getWhatsAppUrl({ orderNumber, recipientName, grandTotal })
 
   return (
     <section data-testid="payment-card">
