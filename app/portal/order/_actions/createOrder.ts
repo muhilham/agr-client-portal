@@ -173,7 +173,7 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
       p_shipping_courier: dbShippingCourier,
       p_shipping_service: dbShippingService,
       p_shipping_etd: dbShippingEtd,
-      p_shipping_address: shippingAddress as Record<string, unknown> | null,
+      p_shipping_address: shippingAddress ?? null,
       p_items: JSON.stringify(itemsPayload),
     })
 
