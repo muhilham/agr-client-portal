@@ -184,7 +184,7 @@ export default function OrderReviewPage() {
 
     sessionStorage.removeItem('cart')
     router.push(
-      `/portal/order/confirmation?id=${result.id}&orderNumber=${encodeURIComponent(result.order_number)}`
+      `/portal/order/confirmation?id=${result.id}&orderNumber=${encodeURIComponent(result.order_number)}&grandTotal=${grandTotal}`
     )
   }
 

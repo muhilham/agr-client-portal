@@ -132,6 +132,19 @@ const s = StyleSheet.create({
   // Payment
   paymentSection: { borderTop: '1px solid #ccc', paddingTop: 10, marginBottom: 16 },
   paymentText: { fontSize: 9, lineHeight: 1.7 },
+  deadlineBadge: {
+    backgroundColor: '#fff3cd',
+    border: '1px solid #ffc107',
+    borderRadius: 3,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    alignSelf: 'flex-start',
+    marginBottom: 8,
+  },
+  deadlineText: { fontSize: 8, fontFamily: 'Helvetica-Bold', color: '#856404' },
+  paymentAccountRow: { flexDirection: 'row', marginBottom: 2 },
+  paymentBankLabel: { width: 70, fontSize: 9 },
+  paymentAccountVal: { fontSize: 9, fontFamily: 'Helvetica-Bold' },
 
   // Footer
   footer: { marginTop: 24, fontSize: 8, color: '#666' },
@@ -240,15 +253,26 @@ export function InvoiceDocument({ data }: { data: InvoiceData }) {
 
         {/* Payment info */}
         <View style={s.paymentSection}>
-          <Text style={s.paymentText}>Payment via:</Text>
-          <Text style={s.paymentText}>
-            Account Name: {AGROASTERY.bankAccountName}
+          <View style={s.deadlineBadge}>
+            <Text style={s.deadlineText}>⚠ Bayar dalam 3×24 jam — Tanpa konfirmasi, pesanan tidak diproses</Text>
+          </View>
+          <Text style={s.paymentText}>Transfer pembayaran ke salah satu rekening berikut:</Text>
+          <View style={s.paymentAccountRow}>
+            <Text style={s.paymentBankLabel}>Bank BCA</Text>
+            <Text style={s.paymentAccountVal}>{AGROASTERY.bcaAccount}</Text>
+            <Text style={s.paymentText}>  a.n. {AGROASTERY.bankAccountName}</Text>
+          </View>
+          <View style={s.paymentAccountRow}>
+            <Text style={s.paymentBankLabel}>Bank Mandiri</Text>
+            <Text style={s.paymentAccountVal}>{AGROASTERY.mandiriAccount}</Text>
+            <Text style={s.paymentText}>  a.n. {AGROASTERY.bankAccountName}</Text>
+          </View>
+          <Text style={s.paymentText}>{" "}</Text>
+          <Text style={[s.paymentText, { fontFamily: 'Helvetica-Bold' }]}>
+            TOTAL YANG HARUS DIBAYAR: {formatIDR(grandTotal)}
           </Text>
           <Text style={s.paymentText}>
-            BCA Bank Account Number: {AGROASTERY.bcaAccount}
-          </Text>
-          <Text style={s.paymentText}>
-            MANDIRI Bank Account Number: {AGROASTERY.mandiriAccount}
+            Transfer sesuai nominal di atas. Konfirmasi via WhatsApp setelah transfer.
           </Text>
         </View>
 

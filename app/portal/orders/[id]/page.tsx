@@ -3,6 +3,7 @@ import { redirect, notFound } from 'next/navigation'
 import Link from 'next/link'
 import { FulfillmentBadge } from '@/components/FulfillmentBadge'
 import { PaymentBadge } from '@/components/PaymentBadge'
+import { PaymentCard } from './_components/PaymentCard'
 import { DownloadInvoiceButton } from './_components/DownloadInvoiceButton'
 import { isPickupOrder, FREE_COURIER_CODE, MANUAL_COURIER_CODE } from '@/lib/shipping'
 import { getClientAccessByEmail } from '@/lib/clients/active-client'
@@ -236,6 +237,15 @@ export default async function OrderDetailPage({ params }: Props) {
               {order.notes}
             </p>
           </div>
+        )}
+
+        {/* Payment instructions — only show for UNPAID orders */}
+        {order.payment_status === 'UNPAID' && (
+          <PaymentCard
+            orderNumber={order.order_number}
+            recipientName={shippingAddress?.recipient_name ?? 'Customer'}
+            grandTotal={order.total_amount + (order.shipping_cost ?? 0)}
+          />
         )}
 
         {/* Actions */}
