@@ -52,15 +52,26 @@ export default function CatalogView({ client, catalog, reorderOrderId }: Props) 
   const [quantities, setQuantities] = useState<Record<string, number>>({})
   const [tab, setTab] = useState<'mine' | 'other'>('mine')
   const [reorderUnavailableCount, setReorderUnavailableCount] = useState(0)
+  const [isReorderLoading, setIsReorderLoading] = useState(false)
+  const [reorderSuccessCount, setReorderSuccessCount] = useState(0)
 
-  // Handle reorder from history
+  // Handle reorder from history — reset when reorderOrderId changes
   useEffect(() => {
     if (!reorderOrderId) return
+
+    // Reset previous state before fetching new reorder
+    setQuantities({})
+    setReorderUnavailableCount(0)
+    setReorderSuccessCount(0)
+    setIsReorderLoading(true)
 
     fetch(`/api/reorders/${reorderOrderId}`)
       .then((r) => r.json())
       .then((data) => {
-        if (data.error || !data.items) return
+        if (data.error || !data.items) {
+          setIsReorderLoading(false)
+          return
+        }
 
         const catalogMap = new Map(
           catalog.map((p) => [p.name.toLowerCase(), p])
@@ -79,9 +90,13 @@ export default function CatalogView({ client, catalog, reorderOrderId }: Props) 
 
         setQuantities(newQuantities)
         setReorderUnavailableCount(unavailable.length)
+        setReorderSuccessCount(Object.keys(newQuantities).length)
       })
       .catch(() => {
         // Silently fail — user can still browse catalog normally
+      })
+      .finally(() => {
+        setIsReorderLoading(false)
       })
   }, [reorderOrderId, catalog])
 
@@ -133,6 +148,22 @@ export default function CatalogView({ client, catalog, reorderOrderId }: Props) 
         </nav>
 
         <div className="max-w-2xl mx-auto px-4 py-6 flex flex-col gap-6">
+          {/* Reorder loading state */}
+          {isReorderLoading && (
+            <div className="rounded-xl border border-brand-honey/50 bg-[rgba(245,235,201,0.06)] px-5 py-3 text-sm text-brand-parchment flex items-center gap-3">
+              <span className="animate-spin inline-block w-4 h-4 border-2 border-brand-honey border-t-transparent rounded-full" />
+              Memuat produk dari pesanan sebelumnya...
+            </div>
+          )}
+
+          {/* Reorder success confirmation */}
+          {!isReorderLoading && reorderSuccessCount > 0 && (
+            <div className="rounded-xl border border-green-500/50 bg-green-500/10 px-5 py-3 text-sm text-green-400 flex items-center gap-3">
+              <span>✓</span>
+              {reorderSuccessCount} item dari pesanan sebelumnya telah ditambahkan ke keranjang.
+            </div>
+          )}
+
           {/* Welcome banner */}
           {reorderUnavailableCount > 0 && (
             <div className="rounded-xl border border-brand-honey/50 bg-[rgba(245,235,201,0.06)] px-5 py-3 text-sm text-brand-parchment">

@@ -64,3 +64,4 @@ keys.txt
 .env.decrypted
 .env.tmp
 .sops.env.*.decrypted
+.hermes/

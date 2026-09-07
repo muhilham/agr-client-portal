@@ -123,6 +123,7 @@ export default async function OrdersPage() {
                   <Link
                     href={`/portal?reorder=${order.id}`}
                     data-testid={`reorder-row-${order.id}`}
+                    aria-label="Pesan Ulang"
                     title="Pesan Ulang"
                     className="absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-lg opacity-0 group-hover:opacity-100
                       hover:bg-[rgba(245,235,201,0.08)] transition-all text-brand-parchment hover:text-brand-honey"
