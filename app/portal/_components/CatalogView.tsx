@@ -1,12 +1,18 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { CatalogProduct } from '@/lib/catalog'
 import ProductCard from './ProductCard'
 import StickyCart from './StickyCart'
 import LogoutButton from './LogoutButton'
+
+type ReorderItem = {
+  product_name: string
+  unit_price: number
+  quantity: number
+}
 
 export type CartItem = {
   productId: string
@@ -26,6 +32,7 @@ type Client = {
 type Props = {
   client: Client
   catalog: CatalogProduct[]
+  reorderOrderId?: string
 }
 
 function getGreeting(): string {
@@ -41,9 +48,42 @@ function getGreeting(): string {
   return 'Selamat malam'
 }
 
-export default function CatalogView({ client, catalog }: Props) {
+export default function CatalogView({ client, catalog, reorderOrderId }: Props) {
   const [quantities, setQuantities] = useState<Record<string, number>>({})
   const [tab, setTab] = useState<'mine' | 'other'>('mine')
+  const [reorderUnavailableCount, setReorderUnavailableCount] = useState(0)
+
+  // Handle reorder from history
+  useEffect(() => {
+    if (!reorderOrderId) return
+
+    fetch(`/api/reorders/${reorderOrderId}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.error || !data.items) return
+
+        const catalogMap = new Map(
+          catalog.map((p) => [p.name.toLowerCase(), p])
+        )
+        const unavailable: string[] = []
+        const newQuantities: Record<string, number> = {}
+
+        for (const item of data.items as ReorderItem[]) {
+          const product = catalogMap.get(item.product_name.toLowerCase())
+          if (product && item.quantity >= product.minQty) {
+            newQuantities[product.id] = item.quantity
+          } else {
+            unavailable.push(item.product_name)
+          }
+        }
+
+        setQuantities(newQuantities)
+        setReorderUnavailableCount(unavailable.length)
+      })
+      .catch(() => {
+        // Silently fail — user can still browse catalog normally
+      })
+  }, [reorderOrderId, catalog])
 
   const myProducts = catalog.filter((p) => p.isClientAssigned)
   const otherProducts = catalog.filter((p) => !p.isClientAssigned)
@@ -94,6 +134,11 @@ export default function CatalogView({ client, catalog }: Props) {
 
         <div className="max-w-2xl mx-auto px-4 py-6 flex flex-col gap-6">
           {/* Welcome banner */}
+          {reorderUnavailableCount > 0 && (
+            <div className="rounded-xl border border-brand-honey/50 bg-[rgba(245,235,201,0.06)] px-5 py-3 text-sm text-brand-parchment">
+              {reorderUnavailableCount} produk tidak lagi tersedia dan tidak ditambahkan ke keranjang.
+            </div>
+          )}
           <div className="rounded-xl border border-[rgba(245,235,201,0.25)] bg-brand-midnight px-5 py-4">
             <p className="text-brand-parchment text-sm">{greeting},</p>
             <p className="text-brand-crema font-semibold text-lg mt-0.5">

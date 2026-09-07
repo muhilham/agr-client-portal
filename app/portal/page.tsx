@@ -4,7 +4,13 @@ import { getClientAccessByEmail } from '@/lib/clients/active-client'
 import { redirect } from 'next/navigation'
 import CatalogView from './_components/CatalogView'
 
-export default async function PortalPage() {
+export default async function PortalPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ reorder?: string }>
+}) {
+  const { reorder } = await searchParams
+
   const supabase = await createClient()
   const {
     data: { user },
@@ -20,5 +26,5 @@ export default async function PortalPage() {
 
   const catalog = await getCatalogForClient(client.id)
 
-  return <CatalogView client={client} catalog={catalog} />
+  return <CatalogView client={client} catalog={catalog} reorderOrderId={reorder} />
 }

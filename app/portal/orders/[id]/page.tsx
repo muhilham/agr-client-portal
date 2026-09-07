@@ -240,14 +240,25 @@ export default async function OrderDetailPage({ params }: Props) {
 
         {/* Actions */}
         <div className="flex flex-col gap-3">
-          <Link
-            href="/portal"
-            data-testid="new-order-button"
-            className="w-full py-3.5 rounded-lg bg-brand-crema text-brand-black font-semibold text-base
-              hover:bg-brand-honey transition-colors text-center min-h-[44px] flex items-center justify-center"
-          >
-            Buat Pesanan Baru
-          </Link>
+          <div className="flex gap-3">
+            <Link
+              href={`/portal?reorder=${order.id}`}
+              data-testid="reorder-button"
+              className="flex-1 py-3.5 rounded-lg border border-brand-honey text-brand-honey
+                font-semibold text-base text-center hover:bg-[rgba(245,235,201,0.06)] transition-colors
+                min-h-[44px] flex items-center justify-center"
+            >
+              Pesan Ulang
+            </Link>
+            <Link
+              href="/portal"
+              data-testid="new-order-button"
+              className="flex-1 py-3.5 rounded-lg bg-brand-crema text-brand-black font-semibold text-base
+                hover:bg-brand-honey transition-colors text-center min-h-[44px] flex items-center justify-center"
+            >
+              Buat Pesanan Baru
+            </Link>
+          </div>
           {order.shipping_courier === MANUAL_COURIER_CODE && order.shipping_cost == null ? (
             <div className="rounded-lg bg-brand-midnight border border-brand-parchment/25 px-4 py-3 text-brand-parchment text-sm text-center">
               Invoice tersedia setelah admin menghitung biaya pengiriman.
