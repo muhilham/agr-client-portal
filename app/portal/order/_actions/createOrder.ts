@@ -119,7 +119,7 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
       shippingAddress = await resolveDefaultAddress(client.id)
 
     } else {
-      // biteship (discriminated union guarantees this is the only remaining mode)
+      // biteship
       if (shippingSelection.mode !== 'biteship') {
         return { ok: false, error: 'Metode pengiriman tidak valid' }
       }
@@ -153,61 +153,39 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
 
   const totalAmount = orderItems.reduce((sum, i) => sum + i.subtotal, 0)
 
-  let orderNumber: string
-  try {
-    const { data, error } = await supabase.rpc('generate_order_number')
-    if (error) throw error
-    if (typeof data !== 'string') throw new Error('generate_order_number returned non-string')
-    orderNumber = data
-  } catch (err) {
-    console.error('[createOrder] Failed to generate order number:', err)
-    return { ok: false, error: 'Terjadi kesalahan, silakan coba lagi' }
-  }
+  // Build the items payload for the atomic function
+  const itemsPayload = orderItems.map((i) => ({
+    product_id: i.productId,
+    product_name: i.productName,
+    unit_price: i.unitPrice,
+    quantity: i.quantity,
+    subtotal: i.subtotal,
+  }))
 
+  // Atomic insert: order + order_items in a single transaction
   let order: { id: string; order_number: string }
   try {
-    const { data, error } = await supabase
-      .from('orders')
-      .insert({
-        order_number: orderNumber,
-        client_id: client.id,
-        fulfillment_status: 'PENDING',
-        payment_status: 'UNPAID',
-        notes: parsed.data.notes?.slice(0, 500) ?? null,
-        total_amount: totalAmount,
-        shipping_cost: dbShippingCost,
-        shipping_courier: dbShippingCourier,
-        shipping_service: dbShippingService,
-        shipping_etd: dbShippingEtd,
-        shipping_address: shippingAddress,
-      })
-      .select('id, order_number')
-      .single()
+    const { data, error } = await supabase.rpc('create_order_and_items', {
+      p_client_id: client.id,
+      p_notes: parsed.data.notes?.slice(0, 500) ?? null,
+      p_total_amount: totalAmount,
+      p_shipping_cost: dbShippingCost,
+      p_shipping_courier: dbShippingCourier,
+      p_shipping_service: dbShippingService,
+      p_shipping_etd: dbShippingEtd,
+      p_shipping_address: shippingAddress ?? null,
+      p_items: JSON.stringify(itemsPayload),
+    })
 
-    if (error || !data) throw error ?? new Error('Failed to create order')
-    order = data
-  } catch (err) {
-    console.error('[createOrder] Failed to insert order:', err)
-    return { ok: false, error: 'Terjadi kesalahan, silakan coba lagi' }
-  }
-
-  try {
-    const { error } = await supabase.from('order_items').insert(
-      orderItems.map((i) => ({
-        order_id: order.id,
-        product_id: i.productId,
-        product_name: i.productName,
-        unit_price: i.unitPrice,
-        quantity: i.quantity,
-        subtotal: i.subtotal,
-      }))
-    )
     if (error) throw error
+    if (!data || data.length === 0) throw new Error('create_order_and_items returned no rows')
+    order = { id: data[0].order_id, order_number: data[0].order_number }
   } catch (err) {
-    console.error('[createOrder] Failed to insert order items:', err)
+    console.error('[createOrder] Failed to create order atomically:', err)
     return { ok: false, error: 'Terjadi kesalahan, silakan coba lagi' }
   }
 
+  // Telegram notification — non-blocking (best-effort)
   try {
     await sendOrderNotification({
       orderId: order.id,
