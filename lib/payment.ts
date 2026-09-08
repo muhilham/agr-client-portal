@@ -1,7 +1,7 @@
 // Agroastery bank accounts and WhatsApp contact for manual transfer payments.
 // When a real WhatsApp business number or payment coordinator is set, update here.
 
-export const AGROASTERY_WA_NUMBER = process.env.NEXT_PUBLIC_AGROASTERY_WA ?? '6281288888993'
+export const AGROASTERY_WA_NUMBER = process.env.NEXT_PUBLIC_AGROASTERY_WA ?? '628979092726'
 
 export const BANK_ACCOUNTS = [
   { bank: 'Bank BCA', account: '0657237047', a_n: 'Muhammad Ilham' },
