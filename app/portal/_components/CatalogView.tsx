@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useReducer } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { CatalogProduct } from '@/lib/catalog'
@@ -12,6 +12,33 @@ type ReorderItem = {
   product_name: string
   unit_price: number
   quantity: number
+}
+
+type ReorderState = {
+  reorderUnavailableCount: number
+  reorderSuccessCount: number
+  isReorderLoading: boolean
+}
+
+type ReorderAction = { type: 'RESET' } | { type: 'SET_LOADING'; payload: boolean }
+  | { type: 'SET_RESULTS'; payload: { unavailableCount: number; successCount: number; quantities: Record<string, number> } }
+
+function reorderReducer(state: ReorderState, action: ReorderAction): ReorderState {
+  switch (action.type) {
+    case 'RESET':
+      return { reorderUnavailableCount: 0, reorderSuccessCount: 0, isReorderLoading: true }
+    case 'SET_LOADING':
+      return { ...state, isReorderLoading: action.payload }
+    case 'SET_RESULTS':
+      return {
+        ...state,
+        isReorderLoading: false,
+        reorderUnavailableCount: action.payload.unavailableCount,
+        reorderSuccessCount: action.payload.successCount,
+      }
+    default:
+      return state
+  }
 }
 
 export type CartItem = {
@@ -51,25 +78,24 @@ function getGreeting(): string {
 export default function CatalogView({ client, catalog, reorderOrderId }: Props) {
   const [quantities, setQuantities] = useState<Record<string, number>>({})
   const [tab, setTab] = useState<'mine' | 'other'>('mine')
-  const [reorderUnavailableCount, setReorderUnavailableCount] = useState(0)
-  const [isReorderLoading, setIsReorderLoading] = useState(false)
-  const [reorderSuccessCount, setReorderSuccessCount] = useState(0)
+  const [reorderState, dispatch] = useReducer(reorderReducer, {
+    reorderUnavailableCount: 0,
+    reorderSuccessCount: 0,
+    isReorderLoading: false,
+  })
 
   // Handle reorder from history — reset when reorderOrderId changes
   useEffect(() => {
     if (!reorderOrderId) return
 
-    // Reset previous state before fetching new reorder
-    setQuantities({})
-    setReorderUnavailableCount(0)
-    setReorderSuccessCount(0)
-    setIsReorderLoading(true)
+    // Reset previous state before fetching new reorder (batched via useReducer to avoid cascading renders)
+    dispatch({ type: 'RESET' })
 
     fetch(`/api/reorders/${reorderOrderId}`)
       .then((r) => r.json())
       .then((data) => {
         if (data.error || !data.items) {
-          setIsReorderLoading(false)
+          dispatch({ type: 'SET_LOADING', payload: false })
           return
         }
 
@@ -89,14 +115,13 @@ export default function CatalogView({ client, catalog, reorderOrderId }: Props) 
         }
 
         setQuantities(newQuantities)
-        setReorderUnavailableCount(unavailable.length)
-        setReorderSuccessCount(Object.keys(newQuantities).length)
+        dispatch({ type: 'SET_RESULTS', payload: { unavailableCount: unavailable.length, successCount: Object.keys(newQuantities).length, quantities: newQuantities } })
       })
       .catch(() => {
         // Silently fail — user can still browse catalog normally
       })
       .finally(() => {
-        setIsReorderLoading(false)
+        dispatch({ type: 'SET_LOADING', payload: false })
       })
   }, [reorderOrderId, catalog])
 
@@ -149,7 +174,7 @@ export default function CatalogView({ client, catalog, reorderOrderId }: Props) 
 
         <div className="max-w-2xl mx-auto px-4 py-6 flex flex-col gap-6">
           {/* Reorder loading state */}
-          {isReorderLoading && (
+          {reorderState.isReorderLoading && (
             <div className="rounded-xl border border-brand-honey/50 bg-[rgba(245,235,201,0.06)] px-5 py-3 text-sm text-brand-parchment flex items-center gap-3">
               <span className="animate-spin inline-block w-4 h-4 border-2 border-brand-honey border-t-transparent rounded-full" />
               Memuat produk dari pesanan sebelumnya...
@@ -157,17 +182,17 @@ export default function CatalogView({ client, catalog, reorderOrderId }: Props) 
           )}
 
           {/* Reorder success confirmation */}
-          {!isReorderLoading && reorderSuccessCount > 0 && (
+          {!reorderState.isReorderLoading && reorderState.reorderSuccessCount > 0 && (
             <div className="rounded-xl border border-green-500/50 bg-green-500/10 px-5 py-3 text-sm text-green-400 flex items-center gap-3">
               <span>✓</span>
-              {reorderSuccessCount} item dari pesanan sebelumnya telah ditambahkan ke keranjang.
+              {reorderState.reorderSuccessCount} item dari pesanan sebelumnya telah ditambahkan ke keranjang.
             </div>
           )}
 
           {/* Welcome banner */}
-          {reorderUnavailableCount > 0 && (
+          {reorderState.reorderUnavailableCount > 0 && (
             <div className="rounded-xl border border-brand-honey/50 bg-[rgba(245,235,201,0.06)] px-5 py-3 text-sm text-brand-parchment">
-              {reorderUnavailableCount} produk tidak lagi tersedia dan tidak ditambahkan ke keranjang.
+              {reorderState.reorderUnavailableCount} produk tidak lagi tersedia dan tidak ditambahkan ke keranjang.
             </div>
           )}
           <div className="rounded-xl border border-[rgba(245,235,201,0.25)] bg-brand-midnight px-5 py-4">
