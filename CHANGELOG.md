@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.1](https://github.com/muhilham/agr-client-portal/compare/v0.10.0...v0.10.1) (2026-09-08)
+
+
+### Bug Fixes
+
+* **payment:** use WhatsApp business number instead of personal number ([#41](https://github.com/muhilham/agr-client-portal/issues/41)) ([56ddbe4](https://github.com/muhilham/agr-client-portal/commit/56ddbe4e1139bb89b351d193fb5e5ba75ea8c9f0))
+
 ## [0.10.0](https://github.com/muhilham/agr-client-portal/compare/v0.9.0...v0.10.0) (2026-09-08)
 
 
