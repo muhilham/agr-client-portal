@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.10.0](https://github.com/muhilham/agr-client-portal/compare/v0.9.0...v0.10.0) (2026-09-08)
+
+
+### Features
+
+* **checkout:** manual transfer payment instructions + saya-sudah-bayar flow ([#37](https://github.com/muhilham/agr-client-portal/issues/37)) ([2a9dfa0](https://github.com/muhilham/agr-client-portal/commit/2a9dfa0ac2f0a7a6aa62c5f8e8aa9b902fb2ed8c))
+
+
+### Bug Fixes
+
+* **orders:** use atomic create_order_and_items RPC to prevent phantom orders ([#39](https://github.com/muhilham/agr-client-portal/issues/39)) ([1d8a034](https://github.com/muhilham/agr-client-portal/commit/1d8a034c248f44eb972878fb0da2fc723c217824))
+
 ## [0.9.0](https://github.com/muhilham/agr-client-portal/compare/v0.8.0...v0.9.0) (2026-09-07)
 
 
