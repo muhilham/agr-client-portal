@@ -174,7 +174,7 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
       p_shipping_service: dbShippingService,
       p_shipping_etd: dbShippingEtd,
       p_shipping_address: shippingAddress ?? null,
-      p_items: JSON.stringify(itemsPayload),
+      p_items: itemsPayload,
     })
 
     if (error) throw error
