@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.2](https://github.com/muhilham/agr-client-portal/compare/v0.10.1...v0.10.2) (2026-09-09)
+
+
+### Bug Fixes
+
+* **deploy:** restore SOPS binary-envelope format for sync-env.mjs ([#43](https://github.com/muhilham/agr-client-portal/issues/43)) ([ac03c35](https://github.com/muhilham/agr-client-portal/commit/ac03c35dfbec8a7833586dfcc9d247e8b16feb63))
+
 ## [0.10.1](https://github.com/muhilham/agr-client-portal/compare/v0.10.0...v0.10.1) (2026-09-08)
 
 
