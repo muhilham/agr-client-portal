@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.3](https://github.com/muhilham/agr-client-portal/compare/v0.10.2...v0.10.3) (2026-09-09)
+
+
+### Bug Fixes
+
+* **orders:** pass p_items as native array to create_order_and_items ([#45](https://github.com/muhilham/agr-client-portal/issues/45)) ([9cc1da2](https://github.com/muhilham/agr-client-portal/commit/9cc1da29e716e40e04a3016de837863ef327c34d))
+
 ## [0.10.2](https://github.com/muhilham/agr-client-portal/compare/v0.10.1...v0.10.2) (2026-09-09)
 
 
