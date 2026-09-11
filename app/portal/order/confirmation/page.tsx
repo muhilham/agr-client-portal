@@ -1,88 +1,52 @@
-'use client'
+'use server'
 
-import { useSearchParams } from 'next/navigation'
-import Link from 'next/link'
-import { Suspense, useState } from 'react'
+import { createClient } from '@/lib/supabase/server'
+import { getClientAccessByEmail } from '@/lib/clients/active-client'
+import { redirect } from 'next/navigation'
 import {
   BANK_ACCOUNTS,
   formatIDR,
-  getWhatsAppUrl,
 } from '@/lib/payment'
+import { isPickupOrder, FREE_COURIER_CODE, MANUAL_COURIER_CODE } from '@/lib/shipping'
+import Link from 'next/link'
 
-function PaymentInstructions({ orderNumber, grandTotal }: { orderNumber: string; grandTotal: number }) {
-  const [waSent, setWaSent] = useState(false)
-  const waUrl = getWhatsAppUrl({ orderNumber, grandTotal })
+type OrderItems = {
+  id: string
+  product_name: string
+  unit_price: number
+  quantity: number
+  subtotal: number
+}[]
 
-  return (
-    <div className="w-full rounded-xl border border-[rgba(245,235,201,0.25)] bg-brand-midnight overflow-hidden">
-      <div className="px-5 py-3 border-b border-[rgba(245,235,201,0.15)]">
-        <p className="text-brand-parchment text-xs uppercase tracking-wider">
-          Transfer Pembayaran
-        </p>
-      </div>
+async function ConfirmationContent({
+  orderId,
+}: {
+  orderId: string
+}) {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
 
-      <div className="px-5 py-4 flex flex-col gap-4">
-        {/* Total */}
-        <div className="flex items-center justify-between">
-          <span className="text-brand-parchment text-sm">Total yang harus dibayar</span>
-          <span className="text-brand-honey text-lg font-semibold">
-            {formatIDR(grandTotal)}
-          </span>
-        </div>
+  if (!user?.email) redirect('/')
 
-        <div className="border-t border-[rgba(245,235,201,0.1)]" />
+  const clientAccess = await getClientAccessByEmail(user.email)
+  if (clientAccess.status !== 'active') redirect('/')
 
-        {/* Bank accounts */}
-        {BANK_ACCOUNTS.map(({ bank, account, a_n }) => (
-          <div key={bank} className="flex flex-col gap-1">
-            <p className="text-brand-crema text-sm font-medium">{bank}</p>
-            <p className="text-brand-parchment text-xs">Rekening</p>
-            <p className="text-brand-crema text-sm font-mono">{account}</p>
-            <p className="text-brand-parchment text-xs">a.n. {a_n}</p>
-          </div>
-        ))}
+  const { data: order } = await supabase
+    .from('orders')
+    .select(
+      `id, order_number, fulfillment_status, payment_status, total_amount,
+       shipping_cost, shipping_courier, shipping_service, shipping_etd,
+       shipping_address, notes, created_at`
+    )
+    .eq('id', orderId)
+    .single()
 
-        <div className="border-t border-[rgba(245,235,201,0.1)]" />
+  if (!order) redirect('/portal')
 
-        <p className="text-brand-parchment text-xs leading-relaxed">
-          Transfer sesuai nominal di atas. Pesanan diproses setelah transfer terkonfirmasi.
-        </p>
-
-        {/* WhatsApp CTA */}
-        {waSent ? (
-          <div className="w-full rounded-lg bg-emerald-900/50 border border-emerald-700 px-4 py-3 text-center">
-            <p className="text-emerald-200 text-sm font-medium">✅ Pesan terkirim!</p>
-            <p className="text-emerald-300/70 text-xs mt-1">Kami akan segera memproses pesanan Anda setelah transfer terkonfirmasi.</p>
-          </div>
-        ) : (
-          <a
-            href={waUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => setWaSent(true)}
-            className="w-full py-3.5 rounded-lg bg-[#25D366] text-white font-semibold text-base text-center hover:bg-[#20BD5A] transition-colors min-h-[48px] flex items-center justify-center gap-2"
-            data-testid="saya-sudah-bayar-button"
-          >
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
-              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
-            </svg>
-            Saya Sudah Bayar
-          </a>
-        )}
-
-        <p className="text-brand-parchment text-xs text-center">
-          Tanpa konfirmasi, pesanan tidak dapat diproses.
-        </p>
-      </div>
-    </div>
-  )
-}
-
-function ConfirmationContent() {
-  const searchParams = useSearchParams()
-  const orderNumber = searchParams.get('orderNumber') ?? '—'
-  const grandTotalParam = searchParams.get('grandTotal')
-  const grandTotal = grandTotalParam ? Number(grandTotalParam) : 0
+  const items = (order as unknown as { order_items: OrderItems }).order_items ?? []
+  const grandTotal = Number(order.total_amount) + (order.shipping_cost != null ? Number(order.shipping_cost) : 0)
 
   return (
     <main className="min-h-screen bg-brand-black flex flex-col items-center justify-center px-4">
@@ -92,7 +56,7 @@ function ConfirmationContent() {
           Agroastery
         </span>
 
-        {/* Success card — secondary, smaller */}
+        {/* Success card */}
         <div
           className="w-full rounded-xl border border-[rgba(245,235,201,0.25)] bg-brand-midnight p-5 flex flex-col items-center gap-3"
           data-testid="confirmation-card"
@@ -113,14 +77,149 @@ function ConfirmationContent() {
               className="text-brand-crema font-semibold text-base tracking-wider"
               data-testid="order-number"
             >
-              {orderNumber}
+              {order.order_number}
             </p>
           </div>
         </div>
 
-        {/* Payment instructions */}
-        {grandTotal > 0 && (
-          <PaymentInstructions orderNumber={orderNumber} grandTotal={grandTotal} />
+        {/* Order summary */}
+        <div className="w-full rounded-xl border border-[rgba(245,235,201,0.25)] bg-brand-midnight overflow-hidden text-left">
+          <div className="px-5 py-3 border-b border-[rgba(245,235,201,0.15)]">
+            <p className="text-brand-parchment text-xs uppercase tracking-wider">
+              Ringkasan Pesanan
+            </p>
+          </div>
+
+          {/* Items */}
+          <div className="divide-y divide-[rgba(245,235,201,0.1)]">
+            {items.map((item) => (
+              <div
+                key={item.id}
+                className="px-5 py-3.5 flex items-center justify-between gap-4"
+                data-testid={`confirmation-item-${item.id}`}
+              >
+                <div className="flex flex-col gap-0.5 flex-1 min-w-0">
+                  <p className="text-brand-crema text-sm font-medium truncate">
+                    {item.product_name}
+                  </p>
+                  <p className="text-brand-parchment text-xs">
+                    {item.quantity} × {formatIDR(item.unit_price)}
+                  </p>
+                </div>
+                <p className="text-brand-crema text-sm font-semibold whitespace-nowrap">
+                  {formatIDR(item.subtotal)}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {/* Totals */}
+          <div className="px-5 py-3.5 border-t border-[rgba(245,235,201,0.25)] flex flex-col gap-1">
+            <div className="flex items-center justify-between">
+              <p className="text-brand-parchment text-sm">Subtotal</p>
+              <p className="text-brand-crema text-sm font-semibold">
+                {formatIDR(Number(order.total_amount))}
+              </p>
+            </div>
+            {!isPickupOrder({ shipping_courier: order.shipping_courier ?? null }) && order.shipping_cost != null && (
+              <div className="flex items-center justify-between">
+                <p className="text-brand-parchment text-sm">Ongkir</p>
+                <p className="text-brand-crema text-sm font-semibold">
+                  {formatIDR(Number(order.shipping_cost))}
+                </p>
+              </div>
+            )}
+            <div className="flex items-center justify-between pt-1 border-t border-[rgba(245,235,201,0.1)]">
+              <p className="text-brand-crema text-sm font-medium">Total</p>
+              <p
+                className="text-brand-honey text-base font-semibold"
+                data-testid="confirmation-grand-total"
+              >
+                {formatIDR(grandTotal)}
+              </p>
+            </div>
+          </div>
+
+          {/* Shipping promise */}
+          {!isPickupOrder({ shipping_courier: order.shipping_courier ?? null }) && (
+            <div className="px-5 py-3 border-t border-[rgba(245,235,201,0.15)] flex flex-col gap-1">
+              {order.shipping_courier === FREE_COURIER_CODE && (
+                <p className="text-brand-parchment text-xs">
+                  <span className="text-brand-crema font-medium">Pengiriman: </span>
+                  Gratis — estimasi {order.shipping_etd ?? '3–5 hari'}
+                </p>
+              )}
+              {order.shipping_courier === MANUAL_COURIER_CODE && (
+                <p className="text-brand-parchment text-xs">
+                  <span className="text-brand-crema font-medium">Pengiriman: </span>
+                  Manual (dihitung admin)
+                </p>
+              )}
+              {order.shipping_courier &&
+                order.shipping_courier !== FREE_COURIER_CODE &&
+                order.shipping_courier !== MANUAL_COURIER_CODE && (
+                  <p className="text-brand-parchment text-xs">
+                    <span className="text-brand-crema font-medium">
+                      {order.shipping_courier} — {order.shipping_service}
+                    </span>
+                    {order.shipping_etd ? ` · Estimasi ${order.shipping_etd}` : ''}
+                  </p>
+                )}
+              <p className="text-brand-parchment text-xs">
+                Pesanan diproses dalam 1×24 jam kerja setelah transfer terkonfirmasi.
+              </p>
+            </div>
+          )}
+
+          {isPickupOrder({ shipping_courier: order.shipping_courier ?? null }) && (
+            <div className="px-5 py-3 border-t border-[rgba(245,235,201,0.15)]">
+              <p className="text-brand-parchment text-xs">
+                <span className="text-brand-crema font-medium">Pengambilan: </span>
+                Ambil sendiri di gudang Agroastery
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Payment instructions — UNPAID only */}
+        {order.payment_status === 'UNPAID' && (
+          <div className="w-full rounded-xl border border-[rgba(245,235,201,0.25)] bg-brand-midnight overflow-hidden">
+            <div className="px-5 py-3 border-b border-[rgba(245,235,201,0.15)]">
+              <p className="text-brand-parchment text-xs uppercase tracking-wider">
+                Transfer Pembayaran
+              </p>
+            </div>
+
+            <div className="px-5 py-4 flex flex-col gap-4">
+              <div className="flex items-center justify-between">
+                <span className="text-brand-parchment text-sm">Total yang harus dibayar</span>
+                <span className="text-brand-honey text-lg font-semibold">
+                  {formatIDR(grandTotal)}
+                </span>
+              </div>
+
+              <div className="border-t border-[rgba(245,235,201,0.1)]" />
+
+              {BANK_ACCOUNTS.map(({ bank, account, a_n }) => (
+                <div key={bank} className="flex flex-col gap-1">
+                  <p className="text-brand-crema text-sm font-medium">{bank}</p>
+                  <p className="text-brand-parchment text-xs">Rekening</p>
+                  <p className="text-brand-crema text-sm font-mono">{account}</p>
+                  <p className="text-brand-parchment text-xs">a.n. {a_n}</p>
+                </div>
+              ))}
+
+              <div className="border-t border-[rgba(245,235,201,0.1)]" />
+
+              <p className="text-brand-parchment text-xs leading-relaxed">
+                Transfer sesuai nominal di atas. Pesanan diproses setelah transfer terkonfirmasi.
+              </p>
+
+              <p className="text-brand-parchment text-xs leading-relaxed">
+                Tanpa konfirmasi, pesanan tidak dapat diproses.
+              </p>
+            </div>
+          </div>
         )}
 
         {/* Actions */}
@@ -148,16 +247,16 @@ function ConfirmationContent() {
   )
 }
 
-export default function ConfirmationPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen bg-brand-black flex items-center justify-center">
-          <p className="text-brand-parchment text-sm">Memuat…</p>
-        </div>
-      }
-    >
-      <ConfirmationContent />
-    </Suspense>
-  )
+export default async function ConfirmationPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ id?: string; orderNumber?: string; grandTotal?: string }>
+}) {
+  const { id } = await searchParams
+
+  if (!id) {
+    redirect('/portal')
+  }
+
+  return <ConfirmationContent orderId={id} />
 }
