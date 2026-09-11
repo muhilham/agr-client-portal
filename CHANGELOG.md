@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.5](https://github.com/muhilham/agr-client-portal/compare/v0.10.4...v0.10.5) (2026-09-11)
+
+
+### Bug Fixes
+
+* **checkout:** idempotent order submit + client-side rate throttle ([0799ec3](https://github.com/muhilham/agr-client-portal/commit/0799ec33f2be8c2214451a039fdebec903d9c6fd)), closes [#19](https://github.com/muhilham/agr-client-portal/issues/19)
+
 ## [0.10.4](https://github.com/muhilham/agr-client-portal/compare/v0.10.3...v0.10.4) (2026-09-11)
 
 
