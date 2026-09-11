@@ -68,13 +68,13 @@ async function loadShippingRates(
       setRatesState({ kind: 'no_address' })
     } else {
       const messages: Record<string, string> = {
-        INVALID_CART: 'Isi keranjang tidak valid, silakan kembali ke katalog',
-        ORIGIN_NOT_CONFIGURED: 'Pengiriman tidak tersedia, hubungi admin',
-        RATES_UNAVAILABLE: 'Tidak dapat menghitung ongkir saat ini',
+        INVALID_CART: 'Beberapa produk tidak lagi tersedia. Keranjang kamu diperbarui.',
+        ORIGIN_NOT_CONFIGURED: 'Pengiriman belum bisa dilakukan. Coba lagi nanti, atau pilih ongkir manual.',
+        RATES_UNAVAILABLE: 'Belum bisa hitung ongkir sekarang. Coba lagi 1 menit, atau pilih ongkir manual.',
         INVALID_INPUT: 'Permintaan tidak valid',
         ACCOUNT_INACTIVE: 'Akun Anda tidak aktif. Hubungi tim Agroastery.',
       }
-      setRatesState({ kind: 'error', message: messages[result.error] ?? 'Terjadi kesalahan' })
+      setRatesState({ kind: 'error', message: messages[result.error] ?? 'Terjadi kesalahan. Kalau masih gagal, hubungi tim Agroastery.' })
     }
     return
   }
@@ -98,12 +98,12 @@ async function loadPickupInfo(
   if (requestIdRef.current !== myRequestId) return // a newer request superseded this one — ignore
   if (!result.ok) {
     const messages: Record<string, string> = {
-      INVALID_CART: 'Isi keranjang tidak valid, silakan kembali ke katalog',
-      ORIGIN_NOT_CONFIGURED: 'Pengambilan tidak tersedia, hubungi admin',
+      INVALID_CART: 'Beberapa produk tidak lagi tersedia. Keranjang kamu diperbarui.',
+      ORIGIN_NOT_CONFIGURED: 'Pengambilan tidak tersedia saat ini. Hubungi tim Agroastery.',
       INVALID_INPUT: 'Permintaan tidak valid',
       ACCOUNT_INACTIVE: 'Akun Anda tidak aktif. Hubungi tim Agroastery.',
     }
-    setPickupState({ kind: 'error', message: messages[result.error] ?? 'Terjadi kesalahan' })
+    setPickupState({ kind: 'error', message: messages[result.error] ?? 'Terjadi kesalahan. Kalau masih gagal, hubungi tim Agroastery.' })
     return
   }
   setPickupState({ kind: 'ready', location: result.location })
@@ -195,12 +195,12 @@ export default function OrderReviewPage() {
     })
 
     if (!result.ok) {
-      if (result.error === 'Kurir tidak lagi tersedia, silakan pilih ulang') {
+      if (result.error_code === 'COURIER_CHANGED') {
         setRatesState({ kind: 'loading' })
         const myRequestId = ++requestIdRef.current
         loadShippingRates(cart, setRatesState, setSelectedRate, setIsManual, requestIdRef, myRequestId)
       }
-      setError(result.error)
+      setError(result.message)
       setSubmitting(false)
       return
     }
