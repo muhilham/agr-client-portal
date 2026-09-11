@@ -18,7 +18,10 @@ export default async function OrdersPage() {
 
   const clientAccess = await getClientAccessByEmail(user.email)
   if (clientAccess.status === 'inactive') redirect('/auth/unauthorized?state=inactive')
-  if (clientAccess.status === 'unregistered') redirect('/auth/unauthorized')
+  if (clientAccess.status === 'unregistered') {
+    const params = new URLSearchParams({ state: 'unregistered', email: user.email })
+    redirect(`/auth/unauthorized?${params}`)
+  }
 
   const { client } = clientAccess
 
