@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.12.1](https://github.com/muhilham/agr-client-portal/compare/v0.12.0...v0.12.1) (2026-09-11)
+
+
+### Bug Fixes
+
+* **ui:** replace &lt;img&gt; with &lt;Image fill&gt; in ProductCard + configure remotePatterns ([437848f](https://github.com/muhilham/agr-client-portal/commit/437848fffd0286c1c1d534f1466ac932f0b70f84))
+* **ux:** add 'Kembali ke halaman masuk' link inside unregistered card ([b7cd09a](https://github.com/muhilham/agr-client-portal/commit/b7cd09a7df24dfa90a1dec699ecc749d97fe6fe9))
+* **ux:** add sign-out button on unauthorized page ([d6c3db7](https://github.com/muhilham/agr-client-portal/commit/d6c3db7dd6fa27e9d4a17fba7aa8a7b871af1e2a))
+* **ux:** make sign-out button a proper tap target (48px+, border, hover state) ([226e934](https://github.com/muhilham/agr-client-portal/commit/226e934b95c6a4e7cd3963088a769a31852c7122))
+* **ux:** rename sign-out button to 'Keluar dari portal' ([fc1ecb7](https://github.com/muhilham/agr-client-portal/commit/fc1ecb7ee2b696cea86c46bc1bd1f9432fa4192c))
+
 ## [0.12.0](https://github.com/muhilham/agr-client-portal/compare/v0.11.0...v0.12.0) (2026-09-11)
 
 
