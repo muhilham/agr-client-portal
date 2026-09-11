@@ -24,7 +24,8 @@ export async function GET(request: NextRequest) {
   }
 
   if (clientAccess.status === 'unregistered') {
-    return NextResponse.redirect(new URL('/auth/unauthorized', siteUrl))
+    const params = new URLSearchParams({ state: 'unregistered', email: user.email })
+    return NextResponse.redirect(new URL(`/auth/unauthorized?${params}`, siteUrl))
   }
 
   return NextResponse.redirect(new URL('/portal', siteUrl))
