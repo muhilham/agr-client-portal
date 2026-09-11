@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.12.0](https://github.com/muhilham/agr-client-portal/compare/v0.11.0...v0.12.0) (2026-09-11)
+
+
+### Features
+
+* **infra:** fire admin Telegram alerts when order pipeline steps fail ([27fd646](https://github.com/muhilham/agr-client-portal/commit/27fd646722c1266920b372cff6ff127ab56fc1a4))
+
+
+### Bug Fixes
+
+* type cast for capturedRatesBody in shipping e2e ([90f0142](https://github.com/muhilham/agr-client-portal/commit/90f01424763faab6564fe7cc7bd3f16c5a4dad82))
+* **ux:** rewrite checkout error copy — actionable, human, code-switched ([19e1c63](https://github.com/muhilham/agr-client-portal/commit/19e1c6337ab4f173fa8c63a4f0a6aa2abfeed7b0))
+
+
+### Tests
+
+* **e2e:** replace shipping.spec.ts stubs with real assertions ([e6aa2dd](https://github.com/muhilham/agr-client-portal/commit/e6aa2ddd9f6cb2a9111679e758a8f5ee02e3c767))
+
 ## [0.11.0](https://github.com/muhilham/agr-client-portal/compare/v0.10.5...v0.11.0) (2026-09-11)
 
 
