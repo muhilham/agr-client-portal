@@ -22,12 +22,12 @@ import { checkIdempotency, setIdempotency } from '@/lib/idempotency'
 export type CreateOrderResult =
   | { ok: true; id: string; order_number: string; idempotent: true }
   | { ok: true; id: string; order_number: string; idempotent: false }
-  | { ok: false; error: string }
+  | { ok: false; error_code: string; message: string }
 
 export async function createOrder(input: unknown): Promise<CreateOrderResult> {
   const parsed = createOrderInputSchema.safeParse(input)
   if (!parsed.success) {
-    return { ok: false, error: 'Permintaan tidak valid' }
+    return { ok: false, error_code: 'INVALID_INPUT', message: 'Permintaan tidak valid' }
   }
 
   const { cartToken } = parsed.data
@@ -44,7 +44,7 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
 
   const client = await getActiveClientByEmail(user.email)
   if (!client) {
-    return { ok: false, error: 'Akun Anda tidak aktif. Hubungi tim Agroastery.' }
+    return { ok: false, error_code: 'ACCOUNT_INACTIVE', message: 'Akun Anda tidak aktif. Hubungi tim Agroastery.' }
   }
 
   // Idempotency guard: if the same cartToken was already submitted successfully,
@@ -68,11 +68,11 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
   if (parsed.data.fulfillmentMethod === 'PICKUP') {
     const itemsResult = await validateCartItems(client.id, parsed.data.items)
     if (!itemsResult.ok) {
-      return { ok: false, error: 'Isi keranjang tidak valid, silakan kembali ke katalog' }
+      return { ok: false, error_code: 'INVALID_CART', message: 'Beberapa produk tidak lagi tersedia. Keranjang kamu diperbarui.' }
     }
     const location = await getPickupLocation()
     if (!location) {
-      return { ok: false, error: 'Pengiriman tidak tersedia, hubungi admin' }
+      return { ok: false, error_code: 'ORIGIN_NOT_CONFIGURED', message: 'Pengiriman belum bisa dilakukan. Hubungi tim Agroastery.' }
     }
 
     orderItems = itemsResult.validatedItems
@@ -86,28 +86,43 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
     // SHIPPING branch
     const shippingSelection = parsed.data.shippingSelection
     if (!shippingSelection) {
-      return { ok: false, error: 'Metode pengiriman tidak dipilih' }
+      return { ok: false, error_code: 'NO_SHIPMENT_MODE', message: 'Metode pengiriman tidak dipilih' }
     }
 
-    const SHIPPING_ERROR_MESSAGES: Record<string, string> = {
-      NO_ADDRESS: 'Alamat pengiriman tidak ditemukan',
-      INVALID_CART: 'Isi keranjang tidak valid, silakan kembali ke katalog',
-      ORIGIN_NOT_CONFIGURED: 'Pengiriman tidak tersedia, hubungi admin',
-      RATES_UNAVAILABLE: 'Pengiriman tidak dapat dihitung',
+    const SHIPPING_ERRORS: Record<string, { error_code: string; message: string }> = {
+      NO_ADDRESS: {
+        error_code: 'NO_ADDRESS',
+        message: 'Alamat pengiriman belum dipilih. Tambahkan alamat di profil kamu.',
+      },
+      INVALID_CART: {
+        error_code: 'INVALID_CART',
+        message: 'Beberapa produk tidak lagi tersedia. Keranjang kamu diperbarui.',
+      },
+      ORIGIN_NOT_CONFIGURED: {
+        error_code: 'ORIGIN_NOT_CONFIGURED',
+        message: 'Pengiriman belum bisa dilakukan. Coba lagi nanti, atau pilih ongkir manual.',
+      },
+      RATES_UNAVAILABLE: {
+        error_code: 'RATES_UNAVAILABLE',
+        message: 'Belum bisa hitung ongkir sekarang. Coba lagi 1 menit, atau pilih ongkir manual.',
+      },
     }
 
     if (shippingSelection.mode === 'free') {
       const ctx = await loadShippingContext(client.id, parsed.data.items)
       if (!ctx.ok) {
-        return { ok: false, error: SHIPPING_ERROR_MESSAGES[ctx.error] ?? 'Terjadi kesalahan' }
+        const err = SHIPPING_ERRORS[ctx.error]
+        return err
+          ? { ok: false, ...err }
+          : { ok: false, error_code: 'UNKNOWN', message: 'Terjadi kesalahan' }
       }
       if (ctx.kind !== 'free_shipping') {
-        return { ok: false, error: 'Tidak dapat menggunakan pengiriman gratis' }
+        return { ok: false, error_code: 'FREE_SHIPPING_UNAVAILABLE', message: 'Tidak dapat menggunakan pengiriman gratis' }
       }
 
       const itemsResult = await validateCartItems(client.id, parsed.data.items)
       if (!itemsResult.ok) {
-        return { ok: false, error: SHIPPING_ERROR_MESSAGES['INVALID_CART'] }
+        return { ok: false, ...SHIPPING_ERRORS['INVALID_CART'] }
       }
       orderItems = itemsResult.validatedItems
       dbShippingCost = 0
@@ -121,7 +136,7 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
     } else if (shippingSelection.mode === 'manual') {
       const itemsResult = await validateCartItems(client.id, parsed.data.items)
       if (!itemsResult.ok) {
-        return { ok: false, error: SHIPPING_ERROR_MESSAGES['INVALID_CART'] }
+        return { ok: false, ...SHIPPING_ERRORS['INVALID_CART'] }
       }
       orderItems = itemsResult.validatedItems
       dbShippingCost = null
@@ -135,14 +150,17 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
     } else {
       // biteship
       if (shippingSelection.mode !== 'biteship') {
-        return { ok: false, error: 'Metode pengiriman tidak valid' }
+        return { ok: false, error_code: 'INVALID_SHIPMENT_MODE', message: 'Metode pengiriman tidak valid' }
       }
       const ctx = await loadShippingContext(client.id, parsed.data.items)
       if (!ctx.ok) {
-        return { ok: false, error: SHIPPING_ERROR_MESSAGES[ctx.error] ?? 'Terjadi kesalahan' }
+        const err = SHIPPING_ERRORS[ctx.error]
+        return err
+          ? { ok: false, ...err }
+          : { ok: false, error_code: 'UNKNOWN', message: 'Terjadi kesalahan' }
       }
       if (ctx.kind !== 'rates') {
-        return { ok: false, error: 'Tidak dapat menghitung ongkir' }
+        return { ok: false, error_code: 'RATES_UNAVAILABLE', message: 'Tidak dapat menghitung ongkir' }
       }
 
       const match = findRateMatch(
@@ -151,7 +169,7 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
         shippingSelection.service_code
       )
       if (!match) {
-        return { ok: false, error: 'Kurir tidak lagi tersedia, silakan pilih ulang' }
+        return { ok: false, error_code: 'COURIER_CHANGED', message: 'Harga kurir sudah berubah. Daftar kurir terbaru sudah dimuat — pilih ulang sebelum konfirmasi.' }
       }
 
       orderItems = ctx.validatedItems
@@ -201,7 +219,7 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
     }
   } catch (err) {
     console.error('[createOrder] Failed to create order atomically:', err)
-    return { ok: false, error: 'Terjadi kesalahan, silakan coba lagi' }
+    return { ok: false, error_code: 'UNEXPECTED_ERROR', message: 'Terjadi kesalahan, silakan coba lagi. Kalau masih gagal, hubungi tim Agroastery.' }
   }
 
   // Telegram notification — non-blocking (best-effort)
