@@ -17,7 +17,7 @@ export default function SignOutButton() {
       onClick={handleSignOut}
       className="mt-3 text-sm text-brand-parchment hover:text-brand-crema transition-colors underline underline-offset-4"
     >
-      Keluar dari akun ini
+      Keluar dari portal
     </button>
   )
 }
