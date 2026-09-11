@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.4](https://github.com/muhilham/agr-client-portal/compare/v0.10.3...v0.10.4) (2026-09-11)
+
+
+### Bug Fixes
+
+* **auth:** actionable Akses ditolak for unregistered clients ([dc5e9fe](https://github.com/muhilham/agr-client-portal/commit/dc5e9fe7731fa564c48348f2e4eb6d71981033b9))
+
 ## [0.10.3](https://github.com/muhilham/agr-client-portal/compare/v0.10.2...v0.10.3) (2026-09-09)
 
 
