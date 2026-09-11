@@ -6,8 +6,8 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: 'gvfptjmpmycbfeithgyh.supabase.co',
-        pathname: '/storage/v1/object/public/product-images/**',
+        hostname: 'cdn.agroastery.com',
+        pathname: '/products/**',
       },
     ],
   },
