@@ -34,6 +34,63 @@ function formatWIB(date: Date): string {
   }).format(date)
 }
 
+// In-memory dedupe: max 1 alert per alertType per hour (per Next.js worker)
+// Railway workers are single-threaded, so module-level Map is safe.
+const alertDedupe = new Map<string, number>()
+const ALERT_TTL_MS = 60 * 60 * 1000 // 1 hour
+
+export type AlertType = 'order_create_failed' | 'telegram_notification_failed' | 'biteship_rates_failed'
+
+function shouldSendAlert(alertType: AlertType): boolean {
+  const now = Date.now()
+  const lastSent = alertDedupe.get(alertType)
+  if (lastSent && now - lastSent < ALERT_TTL_MS) {
+    return false
+  }
+  alertDedupe.set(alertType, now)
+  return true
+}
+
+export async function sendTelegramAlert(alertType: AlertType, detail: string): Promise<void> {
+  if (!shouldSendAlert(alertType)) return
+
+  const botToken = process.env.TELEGRAM_BOT_TOKEN
+  const alertChatId = process.env.TELEGRAM_ALERT_CHAT_ID
+
+  if (!botToken || !alertChatId) {
+    console.warn('[Alert] TELEGRAM_BOT_TOKEN or TELEGRAM_ALERT_CHAT_ID not set — alert dropped')
+    return
+  }
+
+  const alertEmoji: Record<AlertType, string> = {
+    order_create_failed: '🚨',
+    telegram_notification_failed: '⚠️',
+    biteship_rates_failed: '📡',
+  }
+  const emoji = alertEmoji[alertType]
+  const lines = [
+    `${emoji} <b>Agroastery Alert</b>`,
+    ``,
+    `<b>Type:</b> ${alertType.replace(/_/g, ' ')}`,
+    `<b>Time:</b> ${formatWIB(new Date())} WIB`,
+    ``,
+    `<b>Detail:</b> ${detail}`,
+  ]
+
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: alertChatId, text: lines.join('\n'), parse_mode: 'HTML' }),
+    })
+    if (!res.ok) {
+      console.error(`[Alert] Telegram API error ${res.status} when sending alert: ${alertType}`)
+    }
+  } catch (err) {
+    console.error(`[Alert] Failed to send alert ${alertType}:`, err)
+  }
+}
+
 function escapeHtml(text: string): string {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
