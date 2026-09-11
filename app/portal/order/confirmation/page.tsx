@@ -121,7 +121,7 @@ async function ConfirmationContent({
                 {formatIDR(Number(order.total_amount))}
               </p>
             </div>
-            {!isPickupOrder(order as { shipping_courier?: string }) && order.shipping_cost != null && (
+            {!isPickupOrder({ shipping_courier: order.shipping_courier ?? null }) && order.shipping_cost != null && (
               <div className="flex items-center justify-between">
                 <p className="text-brand-parchment text-sm">Ongkir</p>
                 <p className="text-brand-crema text-sm font-semibold">
@@ -141,7 +141,7 @@ async function ConfirmationContent({
           </div>
 
           {/* Shipping promise */}
-          {!isPickupOrder(order as { shipping_courier?: string }) && (
+          {!isPickupOrder({ shipping_courier: order.shipping_courier ?? null }) && (
             <div className="px-5 py-3 border-t border-[rgba(245,235,201,0.15)] flex flex-col gap-1">
               {order.shipping_courier === FREE_COURIER_CODE && (
                 <p className="text-brand-parchment text-xs">
@@ -171,7 +171,7 @@ async function ConfirmationContent({
             </div>
           )}
 
-          {isPickupOrder(order as { shipping_courier?: string }) && (
+          {isPickupOrder({ shipping_courier: order.shipping_courier ?? null }) && (
             <div className="px-5 py-3 border-t border-[rgba(245,235,201,0.15)]">
               <p className="text-brand-parchment text-xs">
                 <span className="text-brand-crema font-medium">Pengambilan: </span>
