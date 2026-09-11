@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.11.0](https://github.com/muhilham/agr-client-portal/compare/v0.10.5...v0.11.0) (2026-09-11)
+
+
+### Features
+
+* **ux:** enrich confirmation page with order summary + shipping promise ([1c40056](https://github.com/muhilham/agr-client-portal/commit/1c4005625ac13c526bd2890cb4f3c41386751cf1))
+
+
+### Bug Fixes
+
+* correct isPickupOrder type (shipping_courier nullable) ([bde7570](https://github.com/muhilham/agr-client-portal/commit/bde75705452463f7d93c8a939ad29b09fccf44f5))
+
 ## [0.10.5](https://github.com/muhilham/agr-client-portal/compare/v0.10.4...v0.10.5) (2026-09-11)
 
 
