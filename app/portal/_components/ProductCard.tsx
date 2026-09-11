@@ -1,5 +1,6 @@
 'use client'
 
+import Image from 'next/image'
 import { useEffect, useState } from 'react'
 import { CatalogProduct } from '@/lib/catalog'
 
@@ -63,10 +64,12 @@ export default function ProductCard({ product, quantity, onQuantityChange }: Pro
       {/* Image */}
       <div className="relative w-full aspect-square bg-brand-black">
         {product.imageUrl ? (
-          <img
+          <Image
             src={product.imageUrl}
             alt={product.name}
-            className="object-cover w-full h-full"
+            fill
+            sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
+            className="object-cover"
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
