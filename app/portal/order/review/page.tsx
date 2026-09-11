@@ -29,6 +29,25 @@ function formatIDR(amount: number) {
   return `Rp ${amount.toLocaleString('id-ID')}`
 }
 
+// Client-side throttle: minimum 1500ms between identical shipping-rate calls.
+// Keyed by items-signature so cart changes always bypass the throttle.
+const THROTTLE_MS = 1_500
+
+let lastRatesCallKey = ''
+let lastRatesCallAt = 0
+
+function canCallRates(key: string): boolean {
+  const now = Date.now()
+  if (key === lastRatesCallKey && now - lastRatesCallAt < THROTTLE_MS) return false
+  lastRatesCallKey = key
+  lastRatesCallAt = now
+  return true
+}
+
+function itemsKey(items: CartItem[]): string {
+  return items.map((i) => `${i.productId}:${i.quantity}`).join(',')
+}
+
 async function loadShippingRates(
   items: CartItem[],
   setRatesState: React.Dispatch<React.SetStateAction<RatesState>>,
@@ -105,6 +124,7 @@ export default function OrderReviewPage() {
   const [notes, setNotes] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [cartToken] = useState(() => (typeof crypto !== 'undefined' ? crypto.randomUUID() : ''))
   const [fulfillmentMethod, setFulfillmentMethod] = useState<FulfillmentMethod>('SHIPPING')
   const [ratesState, setRatesState] = useState<RatesState>({ kind: 'loading' })
   const [selectedRate, setSelectedRate] = useState<RateOption | null>(null)
@@ -119,6 +139,8 @@ export default function OrderReviewPage() {
     }
     const myRequestId = ++requestIdRef.current
     if (fulfillmentMethod === 'SHIPPING') {
+      const key = itemsKey(cart)
+      if (!canCallRates(key)) return
       loadShippingRates(cart, setRatesState, setSelectedRate, setIsManual, requestIdRef, myRequestId)
     } else {
       loadPickupInfo(cart, setPickupState, requestIdRef, myRequestId)
@@ -165,6 +187,7 @@ export default function OrderReviewPage() {
     }
 
     const result = await createOrder({
+      cartToken,
       items: cart.map((i) => ({ productId: i.productId, quantity: i.quantity })),
       notes: notes.trim() || undefined,
       fulfillmentMethod,
@@ -183,6 +206,7 @@ export default function OrderReviewPage() {
     }
 
     sessionStorage.removeItem('cart')
+    // Idempotent replay: if we got a cached result, still navigate to confirmation
     router.push(
       `/portal/order/confirmation?id=${result.id}&orderNumber=${encodeURIComponent(result.order_number)}&grandTotal=${grandTotal}`
     )

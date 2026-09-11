@@ -23,6 +23,7 @@ export const fulfillmentMethodSchema = z.enum(['SHIPPING', 'PICKUP']).default('S
 
 export const createOrderInputSchema = z
   .object({
+    cartToken: z.string().uuid().optional(),
     items: z.array(orderItemInputSchema).min(1).max(100),
     notes: z.string().max(500).optional(),
     fulfillmentMethod: fulfillmentMethodSchema,

@@ -17,8 +17,11 @@ import {
 } from '@/lib/shipping'
 import { sendOrderNotification } from '@/lib/telegram'
 
+import { checkIdempotency, setIdempotency } from '@/lib/idempotency'
+
 export type CreateOrderResult =
-  | { ok: true; id: string; order_number: string }
+  | { ok: true; id: string; order_number: string; idempotent: true }
+  | { ok: true; id: string; order_number: string; idempotent: false }
   | { ok: false; error: string }
 
 export async function createOrder(input: unknown): Promise<CreateOrderResult> {
@@ -26,6 +29,8 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
   if (!parsed.success) {
     return { ok: false, error: 'Permintaan tidak valid' }
   }
+
+  const { cartToken } = parsed.data
 
   const supabase = await createClient()
 
@@ -40,6 +45,15 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
   const client = await getActiveClientByEmail(user.email)
   if (!client) {
     return { ok: false, error: 'Akun Anda tidak aktif. Hubungi tim Agroastery.' }
+  }
+
+  // Idempotency guard: if the same cartToken was already submitted successfully,
+  // return the existing order instead of creating a duplicate.
+  if (cartToken) {
+    const existing = checkIdempotency(cartToken)
+    if (existing) {
+      return { ok: true, id: existing.orderId, order_number: existing.orderNumber, idempotent: true }
+    }
   }
 
   let orderItems: ValidatedItem[]
@@ -180,6 +194,11 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
     if (error) throw error
     if (!data || data.length === 0) throw new Error('create_order_and_items returned no rows')
     order = { id: data[0].order_id, order_number: data[0].order_number }
+
+    // Record this submission so retries are idempotent
+    if (cartToken) {
+      setIdempotency(cartToken, order.id, order.order_number)
+    }
   } catch (err) {
     console.error('[createOrder] Failed to create order atomically:', err)
     return { ok: false, error: 'Terjadi kesalahan, silakan coba lagi' }
@@ -206,5 +225,5 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
     console.error('[Telegram] Notification failed:', err)
   }
 
-  return { ok: true, id: order.id, order_number: order.order_number }
+  return { ok: true, id: order.id, order_number: order.order_number, idempotent: false }
 }
