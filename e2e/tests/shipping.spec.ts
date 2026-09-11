@@ -84,7 +84,7 @@ test.describe('shipping at checkout', () => {
     // Regression guard: assert Biteship received correct weight payload
     // weight should be unit_weight_grams × quantity per line
     expect(capturedRatesBody).not.toBeNull()
-    const items = (capturedRatesBody as Record<string, unknown>).items as Array<Record<string, unknown>>
+    const items = (capturedRatesBody as unknown as Record<string, unknown>).items as Array<Record<string, unknown>>
     expect(items).toHaveLength(1)
     expect(items[0]).toMatchObject({
       quantity: 1,
