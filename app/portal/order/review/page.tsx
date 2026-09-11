@@ -309,7 +309,7 @@ export default function OrderReviewPage() {
 
               {ratesState.kind === 'error' && (
                 <div className="rounded-xl border border-[rgba(245,235,201,0.25)] bg-brand-midnight px-5 py-4 flex flex-col gap-3">
-                  <p className="text-brand-parchment text-sm">{ratesState.message}</p>
+                  <p className="text-brand-parchment text-sm" data-testid="rates-error-message">{ratesState.message}</p>
                   <button
                     onClick={() => {
                       const myRequestId = ++requestIdRef.current
