@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.12.2](https://github.com/muhilham/agr-client-portal/compare/v0.12.1...v0.12.2) (2026-09-11)
+
+
+### Bug Fixes
+
+* correct image domain — was pointing to Supabase Storage, images actually come from cdn.agroastery.com ([625903b](https://github.com/muhilham/agr-client-portal/commit/625903b16326a4e9c9e92bffbd5b65d62cca21d8))
+
 ## [0.12.1](https://github.com/muhilham/agr-client-portal/compare/v0.12.0...v0.12.1) (2026-09-11)
 
 
