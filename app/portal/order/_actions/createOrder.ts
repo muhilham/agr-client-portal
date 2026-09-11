@@ -15,7 +15,7 @@ import {
   type ValidatedItem,
   type ShippingAddressSnapshot,
 } from '@/lib/shipping'
-import { sendOrderNotification } from '@/lib/telegram'
+import { sendOrderNotification, sendTelegramAlert } from '@/lib/telegram'
 
 import { checkIdempotency, setIdempotency } from '@/lib/idempotency'
 
@@ -211,7 +211,9 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
 
     if (error) throw error
     if (!data || data.length === 0) throw new Error('create_order_and_items returned no rows')
-    order = { id: data[0].order_id, order_number: data[0].order_number }
+    const orderId = data[0].order_id as string
+    const orderNumber = data[0].order_number as string
+    order = { id: orderId, order_number: orderNumber }
 
     // Record this submission so retries are idempotent
     if (cartToken) {
@@ -219,6 +221,8 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
     }
   } catch (err) {
     console.error('[createOrder] Failed to create order atomically:', err)
+    // Fire-and-forget admin alert (non-blocking)
+    sendTelegramAlert('order_create_failed', `Order creation failed. Error: ${err instanceof Error ? err.message : String(err)}`).catch(() => {})
     return { ok: false, error_code: 'UNEXPECTED_ERROR', message: 'Terjadi kesalahan, silakan coba lagi. Kalau masih gagal, hubungi tim Agroastery.' }
   }
 
@@ -241,6 +245,8 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
     })
   } catch (err) {
     console.error('[Telegram] Notification failed:', err)
+    // Fire-and-forget admin alert (non-blocking)
+    sendTelegramAlert('telegram_notification_failed', `Order ${order.order_number} created but Telegram notification failed. Error: ${err instanceof Error ? err.message : String(err)}`).catch(() => {})
   }
 
   return { ok: true, id: order.id, order_number: order.order_number, idempotent: false }

@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getActiveClientByEmail } from '@/lib/clients/active-client'
 import { getShippingRatesInputSchema } from '@/lib/schemas/order'
 import { loadShippingContext, groupRatesByCourier, type AddressDisplay, type RateOption } from '@/lib/shipping'
+import { sendTelegramAlert } from '@/lib/telegram'
 
 export type ShippingRatesResult =
   | { ok: true; kind: 'free_shipping'; address: AddressDisplay }
@@ -30,7 +31,15 @@ export async function getShippingRates(input: unknown): Promise<ShippingRatesRes
     return { ok: false, error: 'ACCOUNT_INACTIVE' }
   }
 
-  const ctx = await loadShippingContext(client.id, parsed.data.items)
+  const ctx = await loadShippingContext(client.id, parsed.data.items).catch((err) => {
+    console.error('[getShippingRates] Biteship call failed:', err)
+    sendTelegramAlert('biteship_rates_failed', `Biteship rates unavailable. Error: ${err instanceof Error ? err.message : String(err)}`).catch(() => {})
+    return null
+  })
+
+  if (!ctx) {
+    return { ok: false, error: 'RATES_UNAVAILABLE' }
+  }
 
   if (!ctx.ok) {
     return { ok: false, error: ctx.error }
