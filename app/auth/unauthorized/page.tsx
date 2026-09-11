@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { AGROASTERY_WA_NUMBER } from '@/lib/payment'
+import SignOutButton from './_components/SignOutButton'
 
 export default async function UnauthorizedPage({
   searchParams,
@@ -68,12 +69,7 @@ export default async function UnauthorizedPage({
                 </svg>
                 Hubungi via WhatsApp
               </a>
-              <Link
-                href="/"
-                className="text-center text-sm text-brand-parchment hover:text-brand-crema transition-colors underline underline-offset-4"
-              >
-                Kembali ke halaman masuk
-              </Link>
+              <SignOutButton />
             </>
           ) : (
             <a
@@ -84,6 +80,7 @@ export default async function UnauthorizedPage({
               hello@agroastery.com
             </a>
           )}
+          {(isInactive || (!isInactive && !isUnregistered)) && <SignOutButton />}
         </div>
 
         <Link
