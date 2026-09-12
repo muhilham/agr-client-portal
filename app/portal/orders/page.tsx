@@ -4,6 +4,7 @@ import Link from 'next/link'
 import LogoutButton from '@/app/portal/_components/LogoutButton'
 import { getClientAccessByEmail } from '@/lib/clients/active-client'
 import OrdersClient from './_components/OrdersClient'
+import { Suspense } from 'react'
 
 export const dynamic = 'force-dynamic'
 
@@ -68,7 +69,9 @@ export default async function OrdersPage() {
           </div>
         ) : (
           <>
-            <OrdersClient initialOrders={orders} />
+            <Suspense fallback={<div className="text-brand-parchment text-sm">Memuat...</div>}>
+              <OrdersClient initialOrders={orders} />
+            </Suspense>
             <Link
               href="/portal"
               data-testid="new-order-link"
