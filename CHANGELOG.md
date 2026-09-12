@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.13.0](https://github.com/muhilham/agr-client-portal/compare/v0.12.2...v0.13.0) (2026-09-12)
+
+
+### Features
+
+* **ux:** order history — status filter, month grouping, cursor pagination ([41cf3f3](https://github.com/muhilham/agr-client-portal/commit/41cf3f3723096b2d779a39a9bc85fafef327aedd))
+
+
+### Bug Fixes
+
+* wrap OrdersClient in Suspense for useSearchParams (Next.js App Router requirement) ([3c80d73](https://github.com/muhilham/agr-client-portal/commit/3c80d733917a8b35869abb1c103294cf2a6dab07))
+
 ## [0.12.2](https://github.com/muhilham/agr-client-portal/compare/v0.12.1...v0.12.2) (2026-09-11)
 
 
