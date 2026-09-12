@@ -14,7 +14,7 @@ export default function SignOutButton() {
 
   return (
     <button
-      onClick={handleSignOut}
+      data-testid="sign-out-button"
       className="mt-3 inline-flex items-center justify-center rounded-lg border border-[rgba(245,235,201,0.25)] text-brand-parchment hover:text-brand-crema hover:bg-[rgba(245,235,201,0.08)] transition-colors text-sm px-4 py-2.5 min-h-[44px]"
     >
       Keluar dari portal
