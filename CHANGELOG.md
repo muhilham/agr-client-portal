@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.13.1](https://github.com/muhilham/agr-client-portal/compare/v0.13.0...v0.13.1) (2026-09-12)
+
+
+### Bug Fixes
+
+* **auth:** auto-link user_id on login for admin-created clients ([3897610](https://github.com/muhilham/agr-client-portal/commit/38976105fc77ccb21cccbb836107225047580b58))
+* **auth:** auto-link user_id on login for admin-created clients ([579b979](https://github.com/muhilham/agr-client-portal/commit/579b9790bc069626d23c36760354c9c1787a1292))
+
 ## [0.13.0](https://github.com/muhilham/agr-client-portal/compare/v0.12.2...v0.13.0) (2026-09-12)
 
 
