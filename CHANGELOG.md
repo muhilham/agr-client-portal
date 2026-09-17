@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.3](https://github.com/muhilham/agr-client-portal/compare/v0.13.2...v0.13.3) (2026-09-17)
+
+
+### Bug Fixes
+
+* **deps:** sync pnpm-lock.yaml with vitest devDependency ([bee0d19](https://github.com/muhilham/agr-client-portal/commit/bee0d19a71584281bff35eb95105c3055131ca4c))
+
 ## [0.13.2](https://github.com/muhilham/agr-client-portal/compare/v0.13.1...v0.13.2) (2026-09-17)
 
 
