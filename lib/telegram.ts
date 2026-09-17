@@ -11,6 +11,7 @@ type OrderNotificationPayload = {
   orderId: string
   orderNumber: string
   clientName: string
+  companyName?: string
   items: NotificationItem[]
   totalAmount: number
   shippingCost?: number
@@ -97,16 +98,23 @@ function escapeHtml(text: string): string {
 
 export async function sendOrderNotification(payload: OrderNotificationPayload): Promise<void> {
   try {
-    const { orderId, orderNumber, clientName, items, totalAmount, shippingCost, shippingCourier, shippingService, createdAt } = payload
+    const { orderId, orderNumber, clientName, companyName, items, totalAmount, shippingCost, shippingCourier, shippingService, createdAt } = payload
 
     const itemLines = items
       .map((i) => `  • ${escapeHtml(i.name)} × ${i.quantity} @ ${formatIDR(i.unitPrice)}`)
       .join('\n')
 
+    // Cafe name is what admins recognize the client by; person name is secondary.
+    // Guard against placeholder company_name values ('-' or duplicates of the client name).
+    const placeholderCompany = !companyName || companyName.trim() === '-' || companyName.trim() === clientName.trim()
+    const clientLine = placeholderCompany
+      ? `👤 <b>Klien:</b> ${escapeHtml(clientName)}`
+      : `👤 <b>Klien:</b> ${escapeHtml(companyName.trim())} (${escapeHtml(clientName)})`
+
     const lines = [
       `🛒 <b>Pesanan Baru — ${escapeHtml(orderNumber)}</b>`,
       ``,
-      `👤 <b>Klien:</b> ${escapeHtml(clientName)}`,
+      clientLine,
       `📅 <b>Waktu:</b> ${formatWIB(createdAt)} WIB`,
       ``,
       `<b>Item:</b>`,
