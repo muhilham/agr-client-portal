@@ -18,10 +18,13 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - run: npm ci
+      - run: npm ci --no-audit --no-fund
 
       - name: TypeScript type check
         run: npm run typecheck
+
+      - name: Unit tests
+        run: npm run test:unit
 
       - name: ESLint
         run: npm run lint

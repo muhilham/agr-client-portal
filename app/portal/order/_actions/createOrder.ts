@@ -232,6 +232,7 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
       orderId: order.id,
       orderNumber: order.order_number,
       clientName: client.name,
+      companyName: client.company_name,
       items: orderItems.map((i) => ({
         name: i.productName,
         quantity: i.quantity,

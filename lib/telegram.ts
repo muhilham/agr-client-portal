@@ -7,10 +7,11 @@ type NotificationItem = {
   unitPrice: number
 }
 
-type OrderNotificationPayload = {
+export type OrderNotificationPayload = {
   orderId: string
   orderNumber: string
   clientName: string
+  companyName?: string
   items: NotificationItem[]
   totalAmount: number
   shippingCost?: number
@@ -95,51 +96,65 @@ function escapeHtml(text: string): string {
   return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
+// Pure message builder — exported for unit testing (lib/telegram.test.ts).
+export function buildOrderNotificationMessage(payload: OrderNotificationPayload): string {
+  const { orderNumber, clientName, companyName, items, totalAmount, shippingCost, shippingCourier, shippingService, createdAt } = payload
+
+  const itemLines = items
+    .map((i) => `  • ${escapeHtml(i.name)} × ${i.quantity} @ ${formatIDR(i.unitPrice)}`)
+    .join('\n')
+
+  // Cafe name is what admins recognize the client by; person name is secondary.
+  // Guard against placeholder company_name values (empty/whitespace, '-' or duplicates of the client name).
+  const company = companyName?.trim() ?? ''
+  const placeholderCompany = !company || company === '-' || company === clientName.trim()
+  const clientLine = placeholderCompany
+    ? `👤 <b>Klien:</b> ${escapeHtml(clientName)}`
+    : `👤 <b>Klien:</b> ${escapeHtml(company)} (${escapeHtml(clientName)})`
+
+  const lines = [
+    `🛒 <b>Pesanan Baru — ${escapeHtml(orderNumber)}</b>`,
+    ``,
+    clientLine,
+    `📅 <b>Waktu:</b> ${formatWIB(createdAt)} WIB`,
+    ``,
+    `<b>Item:</b>`,
+    itemLines,
+    ``,
+    `💰 <b>Subtotal: ${formatIDR(totalAmount)}</b>`,
+  ]
+
+  // Shipping line — always show method, conditionally show cost
+  if (shippingCourier === PICKUP_COURIER_CODE) {
+    lines.push(`📦 <b>Ambil Sendiri</b>`)
+  } else if (shippingCourier === FREE_COURIER_CODE) {
+    lines.push(`🚚 <b>Pengiriman: Gratis</b>`)
+  } else if (shippingCourier === MANUAL_COURIER_CODE) {
+    lines.push(`🚚 <b>Pengiriman: Manual (admin)</b>`)
+  } else if (shippingCourier && shippingCost != null) {
+    lines.push(`🚚 <b>Ongkir: ${formatIDR(shippingCost)}</b> ${shippingService ? `(${escapeHtml(shippingCourier)} — ${escapeHtml(shippingService)})` : `(${escapeHtml(shippingCourier)})`}`)
+  }
+
+  // Total line
+  lines.push(``)
+  if (shippingCourier === PICKUP_COURIER_CODE || shippingCourier === FREE_COURIER_CODE) {
+    lines.push(`💰 <b>Total: ${formatIDR(totalAmount)}</b>`)
+  } else if (shippingCourier === MANUAL_COURIER_CODE) {
+    lines.push(`💰 <b>Subtotal: ${formatIDR(totalAmount)}</b>`)
+    lines.push(`💰 <b>Total: ${formatIDR(totalAmount)}</b> (ongkir belum dihitung)`)
+  } else if (shippingCost != null) {
+    lines.push(`💰 <b>Total: ${formatIDR(totalAmount + shippingCost)}</b>`)
+  } else {
+    lines.push(`💰 <b>Total: ${formatIDR(totalAmount)}</b>`)
+  }
+
+  return lines.join('\n')
+}
+
 export async function sendOrderNotification(payload: OrderNotificationPayload): Promise<void> {
+  const { orderId, orderNumber } = payload
   try {
-    const { orderId, orderNumber, clientName, items, totalAmount, shippingCost, shippingCourier, shippingService, createdAt } = payload
-
-    const itemLines = items
-      .map((i) => `  • ${escapeHtml(i.name)} × ${i.quantity} @ ${formatIDR(i.unitPrice)}`)
-      .join('\n')
-
-    const lines = [
-      `🛒 <b>Pesanan Baru — ${escapeHtml(orderNumber)}</b>`,
-      ``,
-      `👤 <b>Klien:</b> ${escapeHtml(clientName)}`,
-      `📅 <b>Waktu:</b> ${formatWIB(createdAt)} WIB`,
-      ``,
-      `<b>Item:</b>`,
-      itemLines,
-      ``,
-      `💰 <b>Subtotal: ${formatIDR(totalAmount)}</b>`,
-    ]
-
-    // Shipping line — always show method, conditionally show cost
-    if (shippingCourier === PICKUP_COURIER_CODE) {
-      lines.push(`📦 <b>Ambil Sendiri</b>`)
-    } else if (shippingCourier === FREE_COURIER_CODE) {
-      lines.push(`🚚 <b>Pengiriman: Gratis</b>`)
-    } else if (shippingCourier === MANUAL_COURIER_CODE) {
-      lines.push(`🚚 <b>Pengiriman: Manual (admin)</b>`)
-    } else if (shippingCourier && shippingCost != null) {
-      lines.push(`🚚 <b>Ongkir: ${formatIDR(shippingCost)}</b> ${shippingService ? `(${escapeHtml(shippingCourier)} — ${escapeHtml(shippingService)})` : `(${escapeHtml(shippingCourier)})`}`)
-    }
-
-    // Total line
-    lines.push(``)
-    if (shippingCourier === PICKUP_COURIER_CODE || shippingCourier === FREE_COURIER_CODE) {
-      lines.push(`💰 <b>Total: ${formatIDR(totalAmount)}</b>`)
-    } else if (shippingCourier === MANUAL_COURIER_CODE) {
-      lines.push(`💰 <b>Subtotal: ${formatIDR(totalAmount)}</b>`)
-      lines.push(`💰 <b>Total: ${formatIDR(totalAmount)}</b> (ongkir belum dihitung)`)
-    } else if (shippingCost != null) {
-      lines.push(`💰 <b>Total: ${formatIDR(totalAmount + shippingCost)}</b>`)
-    } else {
-      lines.push(`💰 <b>Total: ${formatIDR(totalAmount)}</b>`)
-    }
-
-    const message = lines.join('\n')
+    const message = buildOrderNotificationMessage(payload)
 
     const botToken = process.env.TELEGRAM_BOT_TOKEN
     const groupId = process.env.TELEGRAM_ORDER_GROUP_ID
