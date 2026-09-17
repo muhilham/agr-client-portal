@@ -23,6 +23,10 @@ jobs:
 
       - run: npm ci --no-audit --no-fund
 
+      - name: Dump npm debug log on install failure
+        if: failure()
+        run: tail -n 60 $(ls -t ~/.npm/_logs/*debug-0.log | head -1)
+
       - name: TypeScript type check
         run: npm run typecheck
 
