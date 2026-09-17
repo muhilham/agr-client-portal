@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.13.2](https://github.com/muhilham/agr-client-portal/compare/v0.13.1...v0.13.2) (2026-09-17)
+
+
+### Bug Fixes
+
+* **ci:** regenerate lockfile against public npm registry ([d59aa78](https://github.com/muhilham/agr-client-portal/commit/d59aa782fea51113f188dc72ce5511237b355050))
+* **notifications:** show cafe name in telegram order notification ([13fd378](https://github.com/muhilham/agr-client-portal/commit/13fd378b46d1211d70c7d2461a98ecc25424f7fe))
+
+
+### Tests
+
+* **notifications:** add vitest unit coverage for order notification ([a3b77c2](https://github.com/muhilham/agr-client-portal/commit/a3b77c299bd32a5dd974643b7ab9cd6457b6550f))
+
 ## [0.13.1](https://github.com/muhilham/agr-client-portal/compare/v0.13.0...v0.13.1) (2026-09-12)
 
 
