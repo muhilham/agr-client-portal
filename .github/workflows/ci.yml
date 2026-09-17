@@ -18,7 +18,11 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - run: npm ci
+      - run: npm ci --no-audit --no-fund
+        env:
+          # VPS runner is 1.9GB; npm ci crashes ("Exit handler never called!")
+          # under default heap when the lockfile is large (see #116).
+          NODE_OPTIONS: --max-old-space-size=1024
 
       - name: TypeScript type check
         run: npm run typecheck
