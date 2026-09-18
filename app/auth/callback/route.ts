@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { getSupabaseAdmin } from '@/lib/supabase/admin'
 import { getClientAccessByEmail } from '@/lib/clients/active-client'
 import { NextRequest, NextResponse } from 'next/server'
+import { safeNextTarget } from '@/lib/auth/safe-next'
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)
@@ -47,5 +48,12 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL(`/auth/unauthorized?${params}`, siteUrl))
   }
 
-  return NextResponse.redirect(new URL('/portal', siteUrl))
+  // Consume the post-login redirect carried through the login round-trip.
+  // Set by middleware when an unauthenticated `/portal` visitor hits the login wall.
+  const nextRaw = request.cookies.get('post_login_next')?.value ?? null
+  const next = safeNextTarget(nextRaw)
+  // Delete after first read so it's not re-used on subsequent navigations.
+  return NextResponse.redirect(new URL(next ?? '/portal', siteUrl), {
+    headers: { 'Set-Cookie': 'post_login_next=; path=/; max-age=0' },
+  })
 }

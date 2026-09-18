@@ -1,7 +1,8 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextRequest, NextResponse } from 'next/server'
+import { safeNextTarget } from '../auth/safe-next'
 
-export async function updateSession(request: NextRequest): Promise<import('next/server').NextResponse> {
+export async function updateSession(request: NextRequest): Promise<NextResponse> {
   let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
@@ -40,6 +41,24 @@ export async function updateSession(request: NextRequest): Promise<import('next/
         redirectResponse.cookies.delete(name)
       }
     })
+
+    // Carry the target through the login round-trip — guarded by
+    // safeNextTarget which only accepts /portal sub-paths (matches proxy
+    // matcher scope). Stored as httpOnly cookie so it survives the OAuth
+    // round-trip and is consumed server-side in the auth callback, never
+    // surfacing attacker-controlled values in the browser URL bar.
+    const nextRaw = request.nextUrl.pathname + request.nextUrl.search
+    const next = safeNextTarget(nextRaw)
+    if (next) {
+      redirectResponse.cookies.set('post_login_next', next, {
+        maxAge: 300,
+        path: '/',
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax',
+      })
+    }
+
     return redirectResponse
   }
 
