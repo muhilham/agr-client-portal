@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.13.4](https://github.com/muhilham/agr-client-portal/compare/v0.13.3...v0.13.4) (2026-09-18)
+
+
+### Bug Fixes
+
+* **portal:** clear post_login_next on all callback exits, add middleware tests ([128b052](https://github.com/muhilham/agr-client-portal/commit/128b052fa0d39cd44735144b43d149a2665e10a8))
+* **portal:** preserve reorder deep-link through login round-trip ([de4ecc5](https://github.com/muhilham/agr-client-portal/commit/de4ecc5573857d14813ee2878e3bc24a2a67b545))
+
 ## [0.13.3](https://github.com/muhilham/agr-client-portal/compare/v0.13.2...v0.13.3) (2026-09-17)
 
 
