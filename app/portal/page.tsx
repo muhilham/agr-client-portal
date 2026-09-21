@@ -7,9 +7,11 @@ import CatalogView from './_components/CatalogView'
 export default async function PortalPage({
   searchParams,
 }: {
-  searchParams: Promise<{ reorder?: string }>
+  searchParams: Promise<{ reorder?: string; src?: string }>
 }) {
-  const { reorder } = await searchParams
+  const { reorder, src } = await searchParams
+  // Attribution-only marker from WhatsApp stock-reminder links (agr-ops scanner).
+  const isFromReminder = src === 'reminder'
 
   const supabase = await createClient()
   const {
@@ -29,5 +31,5 @@ export default async function PortalPage({
 
   const catalog = await getCatalogForClient(client.id)
 
-  return <CatalogView client={client} catalog={catalog} reorderOrderId={reorder} />
+  return <CatalogView client={client} catalog={catalog} reorderOrderId={reorder} fromReminder={isFromReminder} />
 }
