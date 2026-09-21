@@ -1,9 +1,11 @@
 'use client'
 
-import { useState, useEffect, useReducer } from 'react'
+import { useState, useEffect, useReducer, useRef } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { CatalogProduct } from '@/lib/catalog'
+import { trackReorderFromReminder } from '@/lib/analytics/gtag'
+import { stripSrcParamFromUrl } from '@/lib/analytics/reminder-src'
 import ProductCard from './ProductCard'
 import StickyCart from './StickyCart'
 import LogoutButton from './LogoutButton'
@@ -60,6 +62,8 @@ type Props = {
   client: Client
   catalog: CatalogProduct[]
   reorderOrderId?: string
+  /** True when the session arrived via a WhatsApp stock-reminder link (`?src=reminder`). */
+  fromReminder?: boolean
 }
 
 function getGreeting(): string {
@@ -75,7 +79,7 @@ function getGreeting(): string {
   return 'Selamat malam'
 }
 
-export default function CatalogView({ client, catalog, reorderOrderId }: Props) {
+export default function CatalogView({ client, catalog, reorderOrderId, fromReminder }: Props) {
   const [quantities, setQuantities] = useState<Record<string, number>>({})
   const [tab, setTab] = useState<'mine' | 'other'>('mine')
   const [reorderState, dispatch] = useReducer(reorderReducer, {
@@ -83,6 +87,15 @@ export default function CatalogView({ client, catalog, reorderOrderId }: Props) 
     reorderSuccessCount: 0,
     isReorderLoading: false,
   })
+  // Guarantees the reminder attribution event fires exactly once per order
+  // even if the pre-fill effect re-runs (e.g. catalog reference changes).
+  const reminderTrackedForRef = useRef<string | null>(null)
+
+  // src=reminder is attribution-only: once SSR has read it, remove it from the
+  // address bar so shared/bookmarked links don't carry stale attribution.
+  useEffect(() => {
+    if (fromReminder) stripSrcParamFromUrl()
+  }, [fromReminder])
 
   // Handle reorder from history — reset when reorderOrderId changes
   useEffect(() => {
@@ -90,6 +103,7 @@ export default function CatalogView({ client, catalog, reorderOrderId }: Props) 
 
     // Reset previous state before fetching new reorder (batched via useReducer to avoid cascading renders)
     dispatch({ type: 'RESET' })
+    reminderTrackedForRef.current = null
 
     fetch(`/api/reorders/${reorderOrderId}`)
       .then((r) => r.json())
@@ -115,7 +129,18 @@ export default function CatalogView({ client, catalog, reorderOrderId }: Props) 
         }
 
         setQuantities(newQuantities)
-        dispatch({ type: 'SET_RESULTS', payload: { unavailableCount: unavailable.length, successCount: Object.keys(newQuantities).length, quantities: newQuantities } })
+        const successCount = Object.keys(newQuantities).length
+        dispatch({ type: 'SET_RESULTS', payload: { unavailableCount: unavailable.length, successCount, quantities: newQuantities } })
+
+        // Attribution: reminder-origin pre-fill succeeded — fire once per order.
+        if (fromReminder && successCount > 0 && reminderTrackedForRef.current !== reorderOrderId) {
+          reminderTrackedForRef.current = reorderOrderId
+          trackReorderFromReminder({
+            orderId: reorderOrderId,
+            itemsAdded: successCount,
+            itemsUnavailable: unavailable.length,
+          })
+        }
       })
       .catch(() => {
         // Silently fail — user can still browse catalog normally
@@ -123,7 +148,7 @@ export default function CatalogView({ client, catalog, reorderOrderId }: Props) 
       .finally(() => {
         dispatch({ type: 'SET_LOADING', payload: false })
       })
-  }, [reorderOrderId, catalog])
+  }, [reorderOrderId, catalog, fromReminder])
 
   const myProducts = catalog.filter((p) => p.isClientAssigned)
   const otherProducts = catalog.filter((p) => !p.isClientAssigned)
