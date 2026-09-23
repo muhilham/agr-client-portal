@@ -11,6 +11,7 @@ export function CourierSkeletonRows({ rows = 3 }: { rows?: number }) {
   return (
     <div
       data-testid="courier-skeleton"
+      role="status"
       aria-busy="true"
       aria-label="Menghitung ongkir"
       className="flex flex-col gap-3"

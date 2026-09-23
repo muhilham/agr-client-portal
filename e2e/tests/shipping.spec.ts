@@ -93,33 +93,6 @@ test.describe('shipping at checkout', () => {
     })
   })
 
-  test('empty cart redirects to /portal', async ({ page }) => {
-    await page.goto('/portal/order/review')
-    await expect(page).toHaveURL('/portal', { timeout: 5_000 })
-  })
-
-  test('no address shows AddressCardEmpty', async ({ page }) => {
-    // Seed client WITHOUT an address
-    await seedClientWithDefaultAddress({ email: TEST_USER_EMAIL, clearAddress: true })
-
-    await mockBiteshipLocation(page)
-    await mockBiteshipRates(page, [
-      {
-        courier_code: 'jne',
-        courier_name: 'JNE',
-        courier_service_code: 'REG',
-        courier_service_name: 'Reguler',
-        duration: '2-3 hari',
-        price: 12000,
-      },
-    ])
-
-    await addOneItemAndGoToReview(page)
-
-    // Should show empty address state instead of address card
-    await expect(page.getByTestId('address-card-empty')).toBeVisible({ timeout: 10_000 })
-  })
-
   test('#24 skeleton loading: no full-page blank, notes stay usable, total never a fake number', async ({ page }) => {
     await mockBiteshipLocation(page)
     await mockBiteshipRates(page, [
@@ -167,6 +140,33 @@ test.describe('shipping at checkout', () => {
 
     // Notes survived the whole loading→settled transition
     await expect(notes).toHaveValue('masih loading tapi bisa diketik')
+  })
+
+  test('empty cart redirects to /portal', async ({ page }) => {
+    await page.goto('/portal/order/review')
+    await expect(page).toHaveURL('/portal', { timeout: 5_000 })
+  })
+
+  test('no address shows AddressCardEmpty', async ({ page }) => {
+    // Seed client WITHOUT an address
+    await seedClientWithDefaultAddress({ email: TEST_USER_EMAIL, clearAddress: true })
+
+    await mockBiteshipLocation(page)
+    await mockBiteshipRates(page, [
+      {
+        courier_code: 'jne',
+        courier_name: 'JNE',
+        courier_service_code: 'REG',
+        courier_service_name: 'Reguler',
+        duration: '2-3 hari',
+        price: 12000,
+      },
+    ])
+
+    await addOneItemAndGoToReview(page)
+
+    // Should show empty address state instead of address card
+    await expect(page.getByTestId('address-card-empty')).toBeVisible({ timeout: 10_000 })
   })
 
   test('rates 500 error — retry button appears and refetches on click', async ({ page }) => {
