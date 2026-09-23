@@ -93,6 +93,55 @@ test.describe('shipping at checkout', () => {
     })
   })
 
+  test('#24 skeleton loading: no full-page blank, notes stay usable, total never a fake number', async ({ page }) => {
+    await mockBiteshipLocation(page)
+    await mockBiteshipRates(page, [
+      { courier_code: 'jne', courier_name: 'JNE', courier_service_code: 'REG', courier_service_name: 'Reguler', duration: '2-3 hari', price: 12000 },
+    ])
+
+    // Slow down the getShippingRates server-action round-trip so the loading
+    // window is deterministic. Action calls are the only POSTs to this URL.
+    await page.route('**/portal/order/review', async (route) => {
+      if (route.request().method() === 'POST') {
+        await new Promise((r) => setTimeout(r, 1500))
+      }
+      await route.fallback()
+    })
+
+    await page.goto('/portal')
+    const productId = await getFirstProductId(page)
+    await page.getByTestId(`qty-increment-${productId}`).click()
+    await page.getByTestId('review-order-button').click()
+    await expect(page).toHaveURL('/portal/order/review')
+
+    // During load: page chrome + items + notes stay rendered (no 'Memuat…' swap)
+    await expect(page.getByText('Review Pesanan')).toBeVisible()
+    await expect(page.getByTestId('courier-skeleton')).toBeVisible({ timeout: 5_000 })
+    const notes = page.getByTestId('notes-input')
+    await notes.fill('masih loading tapi bisa diketik')
+    await expect(notes).toHaveValue('masih loading tapi bisa diketik')
+
+    // Ongkir line is honest text, Total shows subtotal + explicit '+ ongkir'
+    await expect(page.getByTestId('shipping-cost')).toContainText('Menghitung ongkir…')
+    await expect(page.getByTestId('shipping-total')).toContainText('+ ongkir')
+    await expect(page.getByTestId('shipping-total-note')).toContainText('Menghitung ongkir…')
+
+    // After rates settle but BEFORE courier choice: still provisional
+    await expect(page.getByTestId('courier-option-jne')).toBeVisible({ timeout: 15_000 })
+    await expect(page.getByTestId('courier-skeleton')).not.toBeVisible()
+    await expect(page.getByTestId('shipping-total')).toContainText('+ ongkir')
+    await expect(page.getByTestId('shipping-total-note')).toContainText('Pilih kurir')
+
+    // Selecting a courier settles the total — no '+ ongkir' suffix anymore
+    await page.getByTestId('courier-option-jne').click()
+    await expect(page.getByTestId('shipping-cost')).toContainText('12.000')
+    await expect(page.getByTestId('shipping-total')).not.toContainText('+ ongkir')
+    await expect(page.getByTestId('shipping-total-note')).toHaveCount(0)
+
+    // Notes survived the whole loading→settled transition
+    await expect(notes).toHaveValue('masih loading tapi bisa diketik')
+  })
+
   test('empty cart redirects to /portal', async ({ page }) => {
     await page.goto('/portal/order/review')
     await expect(page).toHaveURL('/portal', { timeout: 5_000 })

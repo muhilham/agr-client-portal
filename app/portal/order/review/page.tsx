@@ -9,6 +9,7 @@ import { getPickupInfo } from '../_actions/getPickupInfo'
 import { CartItem } from '../../_components/CatalogView'
 import AddressCard, { AddressCardEmpty } from './_components/AddressCard'
 import CourierPicker from './_components/CourierPicker'
+import { CourierSkeletonRows, PickupSkeletonCard } from './_components/ShippingSkeletons'
 import FulfillmentToggle, { type FulfillmentMethod } from './_components/FulfillmentToggle'
 import PickupInfoCard from './_components/PickupInfoCard'
 import type { RateOption, AddressDisplay, PickupLocation } from '@/lib/shipping'
@@ -148,10 +149,28 @@ export default function OrderReviewPage() {
   }, [router, cart, fulfillmentMethod])
 
   const subtotal = cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0)
+  // #24: the chargeable shipping cost is only *known* in settled states. While
+  // rates load, no courier is picked, manual mode is on, or the address/error
+  // state stands, we must NOT render a total that silently treats ongkir as 0.
+  const shippingCostKnown =
+    fulfillmentMethod === 'PICKUP'
+      ? true // pickup is always Gratis
+      : ratesState.kind === 'free_shipping'
+        ? true
+        : ratesState.kind === 'ready' && !isManual && !!selectedRate
   const shippingCost = fulfillmentMethod === 'PICKUP' ? 0
     : ratesState.kind === 'free_shipping' ? 0
     : isManual ? 0
     : selectedRate?.price ?? 0
+  // Pending-total footnote: what the Total line is NOT yet including.
+  const pendingShippingNote =
+    fulfillmentMethod === 'SHIPPING' && !shippingCostKnown
+      ? ratesState.kind === 'loading' ? 'Menghitung ongkir…'
+      : isManual ? 'Ongkir akan dihitung admin'
+      : ratesState.kind === 'ready' ? 'Pilih kurir untuk melihat total akhir'
+      : ratesState.kind === 'no_address' ? 'Lengkapi alamat untuk menghitung ongkir'
+      : 'Ongkir belum bisa dihitung'
+      : null
 
   const grandTotal = subtotal + shippingCost
 
@@ -217,16 +236,8 @@ export default function OrderReviewPage() {
       ? ratesState.kind === 'ready' || ratesState.kind === 'free_shipping' || isManual
       : pickupState.kind === 'ready'
 
-  const isLoading =
-    fulfillmentMethod === 'SHIPPING' ? ratesState.kind === 'loading' : pickupState.kind === 'loading'
-
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-brand-black flex items-center justify-center">
-        <div className="text-brand-parchment text-sm">Memuat…</div>
-      </div>
-    )
-  }
+  // #24: no full-page early return while rates load — items, address chrome and
+  // notes stay interactive; only the courier area swaps to skeleton rows.
 
   return (
     <main className="min-h-screen bg-brand-black">
@@ -289,6 +300,18 @@ export default function OrderReviewPage() {
 
           {fulfillmentMethod === 'SHIPPING' && (
             <>
+              {ratesState.kind === 'loading' && (
+                <>
+                  <CourierSkeletonRows rows={3} />
+                  <div className="flex items-center justify-between px-1">
+                    <p className="text-brand-parchment text-sm">Ongkir</p>
+                    <p className="text-brand-parchment text-sm italic" data-testid="shipping-cost">
+                      Menghitung ongkir…
+                    </p>
+                  </div>
+                </>
+              )}
+
               {ratesState.kind === 'free_shipping' && (
                 <>
                   <AddressCard address={ratesState.address} />
@@ -363,6 +386,18 @@ export default function OrderReviewPage() {
 
           {fulfillmentMethod === 'PICKUP' && (
             <>
+              {pickupState.kind === 'loading' && (
+                <>
+                  <PickupSkeletonCard />
+                  <div className="flex items-center justify-between px-1">
+                    <p className="text-brand-parchment text-sm">Ongkir</p>
+                    <p className="text-brand-crema text-sm font-semibold" data-testid="shipping-cost">
+                      Gratis (Ambil Sendiri)
+                    </p>
+                  </div>
+                </>
+              )}
+
               {pickupState.kind === 'error' && (
                 <div className="rounded-xl border border-[rgba(245,235,201,0.25)] bg-brand-midnight px-5 py-4 flex flex-col gap-3">
                   <p className="text-brand-parchment text-sm">{pickupState.message}</p>
@@ -394,12 +429,20 @@ export default function OrderReviewPage() {
           )}
         </div>
 
-        {/* Grand total */}
-        <div className="flex items-center justify-between px-1">
-          <p className="text-brand-crema text-base font-semibold">Total</p>
-          <p className="text-brand-crema text-lg font-semibold" data-testid="shipping-total">
-            {formatIDR(grandTotal)}
-          </p>
+        {/* Grand total — never render a sum that silently omits a not-yet-known ongkir (#24) */}
+        <div className="flex flex-col gap-1 px-1">
+          <div className="flex items-center justify-between">
+            <p className="text-brand-crema text-base font-semibold">Total</p>
+            <p className="text-brand-crema text-lg font-semibold" data-testid="shipping-total">
+              {formatIDR(subtotal)}
+              {pendingShippingNote ? <span className="text-brand-parchment text-sm font-normal"> + ongkir</span> : null}
+            </p>
+          </div>
+          {pendingShippingNote && (
+            <p className="text-brand-parchment text-xs text-right" data-testid="shipping-total-note">
+              {pendingShippingNote}
+            </p>
+          )}
         </div>
 
         {/* Notes */}

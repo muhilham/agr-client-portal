@@ -204,8 +204,8 @@ test.describe('Order review → submission (CP-03 → CP-04)', () => {
     const itemRow = page.locator('[data-testid^="order-item-"]').first()
     await expect(itemRow).toBeVisible()
 
-    // Total shows IDR amount
-    await expect(page.getByTestId('order-grand-total')).toContainText('Rp')
+    // Total shows IDR amount (review page uses shipping-total; order-grand-total is the detail page's testid)
+    await expect(page.getByTestId('shipping-total')).toContainText('Rp')
 
     // Notes textarea present with 16px font (iOS zoom prevention)
     const notes = page.getByTestId('notes-input')
