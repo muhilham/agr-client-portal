@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.14.0](https://github.com/muhilham/agr-client-portal/compare/v0.13.4...v0.14.0) (2026-09-23)
+
+
+### Features
+
+* **portal:** GA4 attribution for stock-reminder reorder sessions ([#75](https://github.com/muhilham/agr-client-portal/issues/75)) ([b8dabd7](https://github.com/muhilham/agr-client-portal/commit/b8dabd736e4f31c934e509603c041559e12f9f08))
+
+
+### Bug Fixes
+
+* **ux:** review-page skeletons + never a provisional grand total ([#24](https://github.com/muhilham/agr-client-portal/issues/24)) ([49aa43b](https://github.com/muhilham/agr-client-portal/commit/49aa43b6aadded44ed323394e68df435403dbdc0))
+
+
+### Tests
+
+* **e2e:** run [#24](https://github.com/muhilham/agr-client-portal/issues/24) skeleton test before address-clearing specs; fix stale review-total testid ([f80ec4c](https://github.com/muhilham/agr-client-portal/commit/f80ec4cde0af59ae6c8734165ebca49b2c1e1f33))
+
 ## [0.13.4](https://github.com/muhilham/agr-client-portal/compare/v0.13.3...v0.13.4) (2026-09-18)
 
 
