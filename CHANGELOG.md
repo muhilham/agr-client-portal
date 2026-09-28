@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.14.1](https://github.com/muhilham/agr-client-portal/compare/v0.14.0...v0.14.1) (2026-09-28)
+
+
+### Bug Fixes
+
+* regenerate pnpm-lock.yaml with @next/third-parties ([7cb135b](https://github.com/muhilham/agr-client-portal/commit/7cb135b93883e58e591b60b6cff621daf1fef209))
+* regenerate pnpm-lock.yaml with @next/third-parties ([124b41f](https://github.com/muhilham/agr-client-portal/commit/124b41fa27512410522026abd3be09995c07929f))
+
 ## [0.14.0](https://github.com/muhilham/agr-client-portal/compare/v0.13.4...v0.14.0) (2026-09-23)
 
 
