@@ -31,5 +31,5 @@ export default async function PortalPage({
 
   const catalog = await getCatalogForClient(client.id)
 
-  return <CatalogView client={client} catalog={catalog} reorderOrderId={reorder} fromReminder={isFromReminder} />
+  return <CatalogView client={client} email={user.email} catalog={catalog} reorderOrderId={reorder} fromReminder={isFromReminder} />
 }

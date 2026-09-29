@@ -41,6 +41,13 @@ export default async function OrdersPage() {
             Agroastery
           </span>
           <div className="flex items-center gap-4">
+            <span
+              className="text-brand-parchment text-sm max-w-[140px] truncate"
+              data-testid="signed-in-email"
+              title={user.email}
+            >
+              {user.email}
+            </span>
             <Link
               href="/portal"
               className="text-brand-parchment text-sm hover:text-brand-crema transition-colors"
