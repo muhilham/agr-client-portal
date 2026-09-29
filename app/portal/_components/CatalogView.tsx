@@ -60,6 +60,7 @@ type Client = {
 
 type Props = {
   client: Client
+  email: string
   catalog: CatalogProduct[]
   reorderOrderId?: string
   /** True when the session arrived via a WhatsApp stock-reminder link (`?src=reminder`). */
@@ -79,7 +80,7 @@ function getGreeting(): string {
   return 'Selamat malam'
 }
 
-export default function CatalogView({ client, catalog, reorderOrderId, fromReminder }: Props) {
+export default function CatalogView({ client, email, catalog, reorderOrderId, fromReminder }: Props) {
   const [quantities, setQuantities] = useState<Record<string, number>>({})
   const [tab, setTab] = useState<'mine' | 'other'>('mine')
   const [reorderState, dispatch] = useReducer(reorderReducer, {
@@ -230,6 +231,9 @@ export default function CatalogView({ client, catalog, reorderOrderId, fromRemin
                 {client.company_name}
               </p>
             )}
+            <p className="text-brand-parchment text-sm mt-1" data-testid="signed-in-email">
+              Masuk sebagai {email}
+            </p>
           </div>
 
           {/* Catalog */}

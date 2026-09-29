@@ -78,6 +78,12 @@ test.describe('Portal catalog (CP-02)', () => {
     // Client name displayed
     await expect(page.getByText('E2E Test Client')).toBeVisible()
 
+    // Signed-in session email visible (issue #82 — identity must be checkable post-login)
+    const { clientEmail } = getTestIds()
+    const emailLine = page.getByTestId('signed-in-email')
+    await expect(emailLine).toBeVisible()
+    await expect(emailLine).toHaveText(`Masuk sebagai ${clientEmail.toLowerCase()}`)
+
     // Product grid visible
     const grid = page.getByTestId('product-grid')
     await expect(grid).toBeVisible()
