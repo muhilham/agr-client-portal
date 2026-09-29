@@ -82,7 +82,7 @@ test.describe('Portal catalog (CP-02)', () => {
     const { clientEmail } = getTestIds()
     const emailLine = page.getByTestId('signed-in-email')
     await expect(emailLine).toBeVisible()
-    await expect(emailLine).toHaveText(`Masuk sebagai ${clientEmail}`)
+    await expect(emailLine).toHaveText(`Masuk sebagai ${clientEmail.toLowerCase()}`)
 
     // Product grid visible
     const grid = page.getByTestId('product-grid')
