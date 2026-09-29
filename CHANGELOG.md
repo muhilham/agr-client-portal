@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.15.0](https://github.com/muhilham/agr-client-portal/compare/v0.14.1...v0.15.0) (2026-09-29)
+
+
+### Features
+
+* **ux:** show signed-in session email on catalog greeting and orders nav ([9fc87fa](https://github.com/muhilham/agr-client-portal/commit/9fc87fa1d528287366ef51b38b286ce4ff0299dd))
+
+
+### Tests
+
+* **e2e:** assert email text against lowercased clientEmail ([897a143](https://github.com/muhilham/agr-client-portal/commit/897a143434a4de6878d63fd3b0abe33d1e488764))
+
 ## [0.14.1](https://github.com/muhilham/agr-client-portal/compare/v0.14.0...v0.14.1) (2026-09-28)
 
 
