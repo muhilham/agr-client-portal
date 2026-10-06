@@ -11,6 +11,7 @@ describe('getBiteshipLocation coordinate parsing', () => {
   afterEach(() => {
     process.env = ORIGINAL_ENV
     vi.restoreAllMocks()
+    vi.unstubAllGlobals()
   })
 
   it('extracts lat/lng from nested coordinate object (live API shape)', async () => {
