@@ -43,10 +43,19 @@ export const getBiteshipLocation = cache(async (id: string): Promise<BiteshipLoc
     // The live API nests GPS under `coordinate`; top-level latitude/longitude is
     // the legacy/mock shape. On-demand couriers (lalamove, gojek, grab) are
     // silently dropped from /rates/couriers when origin coords are missing.
+    // Rebuild explicitly (no spread of raw API fields); non-finite values
+    // become null so they get stripped before the rates call.
+    const lat = json.coordinate?.latitude ?? json.latitude
+    const lng = json.coordinate?.longitude ?? json.longitude
     return {
-      ...json,
-      latitude: json.coordinate?.latitude ?? json.latitude ?? null,
-      longitude: json.coordinate?.longitude ?? json.longitude ?? null,
+      id: json.id,
+      name: json.name,
+      contact_name: json.contact_name,
+      contact_phone: json.contact_phone,
+      address: json.address,
+      postal_code: json.postal_code,
+      latitude: typeof lat === 'number' && Number.isFinite(lat) ? lat : null,
+      longitude: typeof lng === 'number' && Number.isFinite(lng) ? lng : null,
     }
   } catch (err) {
     console.error('[Biteship] getBiteshipLocation failed:', err)

@@ -227,8 +227,8 @@ export async function loadShippingContext(
     origin_latitude: origin.latitude,
     origin_longitude: origin.longitude,
     destination_postal_code: address.postal_code,
-    destination_latitude: address.latitude ?? null,
-    destination_longitude: address.longitude ?? null,
+    destination_latitude: address.latitude,
+    destination_longitude: address.longitude,
     couriers,
     items: biteshipItems,
   })

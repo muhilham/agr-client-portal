@@ -79,4 +79,63 @@ describe('getBiteshipLocation coordinate parsing', () => {
     expect(loc?.latitude).toBeNull()
     expect(loc?.longitude).toBeNull()
   })
+
+  it('prefers nested coordinate over top-level when both shapes are present', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        id: 'loc-4',
+        name: 'Both Shapes',
+        contact_name: 'Test',
+        contact_phone: '081234567890',
+        address: 'Jl. Both',
+        postal_code: '12730',
+        coordinate: { latitude: -6.2636835, longitude: 106.8194514 },
+        latitude: -7.7,
+        longitude: 110.1,
+      }),
+    })
+    vi.stubGlobal('fetch', mockFetch)
+
+    const { getBiteshipLocation } = await import('./biteship')
+    const loc = await getBiteshipLocation('loc-4')
+
+    expect(loc?.latitude).toBe(-6.2636835)
+    expect(loc?.longitude).toBe(106.8194514)
+  })
+
+  it('returns null when the API responds with an error status', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: false,
+      json: async () => ({}),
+    })
+    vi.stubGlobal('fetch', mockFetch)
+
+    const { getBiteshipLocation } = await import('./biteship')
+    const loc = await getBiteshipLocation('loc-5')
+
+    expect(loc).toBeNull()
+  })
+
+  it('nullifies non-numeric coordinate values instead of passing them through', async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        id: 'loc-6',
+        name: 'Bad GPS',
+        contact_name: 'Test',
+        contact_phone: '081234567890',
+        address: 'Jl. Bad',
+        postal_code: '12730',
+        coordinate: { latitude: '-6.26', longitude: null },
+      }),
+    })
+    vi.stubGlobal('fetch', mockFetch)
+
+    const { getBiteshipLocation } = await import('./biteship')
+    const loc = await getBiteshipLocation('loc-6')
+
+    expect(loc?.latitude).toBeNull()
+    expect(loc?.longitude).toBeNull()
+  })
 })
