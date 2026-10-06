@@ -22,6 +22,10 @@ export interface AddressDisplay {
   recipient_name: string
   address_line: string
   postal_code: string
+  // Present when the address row has GPS. Required by Biteship to quote
+  // on-demand couriers (lalamove/gojek/grab); postal-only lanes exclude them.
+  latitude?: number | null
+  longitude?: number | null
 }
 
 export type ShippingAddressSnapshot = AddressDisplay & { backfilled?: boolean }
@@ -112,7 +116,7 @@ export async function resolveDefaultAddress(clientId: string): Promise<AddressDi
 
   let addressRow = await supabase
     .from('addresses')
-    .select('recipient_name, address_line, postal_code')
+    .select('recipient_name, address_line, postal_code, latitude, longitude')
     .eq('client_id', clientId)
     .eq('is_default', true)
     .maybeSingle()
@@ -127,7 +131,7 @@ export async function resolveDefaultAddress(clientId: string): Promise<AddressDi
   if (!addressRow) {
     addressRow = await supabase
       .from('addresses')
-      .select('recipient_name, address_line, postal_code')
+      .select('recipient_name, address_line, postal_code, latitude, longitude')
       .eq('client_id', clientId)
       .limit(1)
       .maybeSingle()
@@ -140,6 +144,8 @@ export async function resolveDefaultAddress(clientId: string): Promise<AddressDi
     recipient_name: addressRow.recipient_name,
     address_line: addressRow.address_line,
     postal_code: addressRow.postal_code,
+    latitude: addressRow.latitude ?? null,
+    longitude: addressRow.longitude ?? null,
   }
 }
 
@@ -221,6 +227,8 @@ export async function loadShippingContext(
     origin_latitude: origin.latitude,
     origin_longitude: origin.longitude,
     destination_postal_code: address.postal_code,
+    destination_latitude: address.latitude ?? null,
+    destination_longitude: address.longitude ?? null,
     couriers,
     items: biteshipItems,
   })
