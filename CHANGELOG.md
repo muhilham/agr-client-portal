@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.15.1](https://github.com/muhilham/agr-client-portal/compare/v0.15.0...v0.15.1) (2026-10-06)
+
+
+### Bug Fixes
+
+* **shipping:** pass GPS coords to Biteship rates so instant couriers are quoted ([96eb715](https://github.com/muhilham/agr-client-portal/commit/96eb7151cdd2945e544761dd9db918d36a5b4fb4))
+
+
+### Refactors
+
+* **biteship:** rebuild location explicitly, harden coord parsing, expand tests ([cb6cc37](https://github.com/muhilham/agr-client-portal/commit/cb6cc379199757296344071d01325c49bbbda950))
+
+
+### Tests
+
+* **biteship:** unstub global fetch in afterEach to avoid suite-level leaks ([8082aa3](https://github.com/muhilham/agr-client-portal/commit/8082aa3dc281512d96dea1283388267c5784944e))
+
 ## [0.15.0](https://github.com/muhilham/agr-client-portal/compare/v0.14.1...v0.15.0) (2026-09-29)
 
 
