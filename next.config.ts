@@ -9,6 +9,11 @@ const nextConfig: NextConfig = {
         hostname: 'cdn.agroastery.com',
         pathname: '/products/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'cdn.agroastery.com',
+        pathname: '/produk/**',
+      },
     ],
   },
 }
