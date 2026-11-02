@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.15.2](https://github.com/muhilham/agr-client-portal/compare/v0.15.1...v0.15.2) (2026-11-02)
+
+
+### Bug Fixes
+
+* **catalog:** allow /produk/** CDN path + placeholder fallback on image error ([a21dfad](https://github.com/muhilham/agr-client-portal/commit/a21dfadb15222310ce3bf7844803ebfd6797ced2))
+* **catalog:** key image-failure state to the failed URL ([9ba9c9e](https://github.com/muhilham/agr-client-portal/commit/9ba9c9e3e2266736cda7c81cb6bbd8c96c0ab3f4))
+
 ## [0.15.1](https://github.com/muhilham/agr-client-portal/compare/v0.15.0...v0.15.1) (2026-10-06)
 
 
