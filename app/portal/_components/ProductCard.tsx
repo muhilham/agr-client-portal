@@ -3,6 +3,7 @@
 import Image from 'next/image'
 import { useEffect, useState } from 'react'
 import { CatalogProduct } from '@/lib/catalog'
+import { imageDisplayState } from '@/lib/image-fallback'
 
 type Props = {
   product: CatalogProduct
@@ -12,6 +13,7 @@ type Props = {
 
 export default function ProductCard({ product, quantity, onQuantityChange }: Props) {
   const [hint, setHint] = useState<'none' | 'live' | 'adjusted'>('none')
+  const [failedUrl, setFailedUrl] = useState<string | null>(null)
   const hintId = `minqty-hint-${product.id}`
   const showsHint = product.minQty > 1 && hint !== 'none'
 
@@ -63,13 +65,14 @@ export default function ProductCard({ product, quantity, onQuantityChange }: Pro
     >
       {/* Image */}
       <div className="relative w-full aspect-square bg-brand-black">
-        {product.imageUrl ? (
+        {imageDisplayState(product.imageUrl, failedUrl === product.imageUrl) === 'image' ? (
           <Image
-            src={product.imageUrl}
+            src={product.imageUrl!}
             alt={product.name}
             fill
             sizes="(max-width: 768px) 50vw, (max-width: 1200px) 33vw, 25vw"
             className="object-cover"
+            onError={() => setFailedUrl(product.imageUrl!)}
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center">
