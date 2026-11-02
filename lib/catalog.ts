@@ -30,6 +30,7 @@ type ProductRow = {
 type ClientProductRow = {
   custom_price: number | null
   min_qty: number | null
+  variant_id: string | null
   products: ProductRow | null
 }
 
@@ -48,9 +49,15 @@ export async function getCatalogForClient(clientId: string): Promise<CatalogProd
   const { data: clientProducts, error: clientErr } = await supabase
     .from('client_products')
     .select(
-      'custom_price, min_qty, products (id, name, description, unit, sku, base_price, image_url, is_global, is_active, ship_weight_grams)'
+      'custom_price, min_qty, variant_id, products (id, name, description, unit, sku, base_price, image_url, is_global, is_active, ship_weight_grams)'
     )
     .eq('client_id', clientId)
+    // agr-ops #297 (migration 068): client_products can now hold per-variant
+    // cliff rows (variant_id NOT NULL). The portal still sells FLAT products
+    // (size-chip UI is portal #90, not built yet) — a variant cliff belongs to
+    // ONE size and must never price the whole product. Until #90 ships, only
+    // the whole-product row (variant_id IS NULL) may override the catalog.
+    .is('variant_id', null)
     .returns<ClientProductRow[]>()
 
   if (clientErr) throw clientErr
