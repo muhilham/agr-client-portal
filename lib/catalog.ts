@@ -158,11 +158,10 @@ export async function getCatalogForClient(clientId: string): Promise<CatalogProd
       if (!variants || variants.length === 0) continue
       const lines = buildVariantLines(
         pid,
-        // at this point effectivePrice is raw base_price when no flat cliff
-        // row exists; when one does, the resolver's productCliff branch
-        // applies it before reaching this fallback.
+        // #307: no whole-product cliff is passed — a default row on a
+        // sells-by-size product neither prices nor moqs chips. Card-level
+        // effectivePrice above still serves FLAT products only (:158 skip).
         Number(product.effectivePrice),
-        flatCliffByProduct.get(pid) ?? null,
         variants,
         variantCliffsByVariant
       )

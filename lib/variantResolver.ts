@@ -96,11 +96,19 @@ export interface CliffRow {
   minQty: number | null
 }
 
-/** One chip = one concrete variant binding. */
+/**
+ * One chip = one concrete variant binding.
+ *
+ * #307: the whole-product (default) cliff NO LONGER prices or moqs size
+ * chips — that inheritance was the leak (a 1kg deal showed on every 100g
+ * chip, up to 6.2x list). Chip pricing is now variant-cliff-or-list only.
+ * Default rows remain legal as pure access grants (NULL/NULL) and for flat
+ * products, which never reach this function (catalog skips products with
+ * no variants and prices those cards from the default row directly).
+ */
 export function buildVariantLines(
   productId: string,
   basePrice: number,
-  productCliff: CliffRow | null,
   variants: ResolverVariant[],
   variantCliffs: Map<string, CliffRow>
 ): CatalogVariantLine[] {
@@ -122,16 +130,15 @@ export function buildVariantLines(
   const effPrice = (v: ResolverVariant): number => {
     const vc = variantCliffs.get(v.id)
     if (vc?.customPrice != null) return vc.customPrice
-    if (productCliff?.customPrice != null) return productCliff.customPrice
     return v.price ?? basePrice
   }
   const effMin = (v: ResolverVariant): number => {
-    // Contract: variant row > product-level row. A variant cliff row ALWAYS
-    // wins, including min_qty = 1 (= "no minimum on this chip") overriding a
-    // product-level minimum; Math.max guards editor slips (0/negative).
+    // Contract (#307): variant cliff row or 1. A variant row always wins,
+    // including min_qty = 1 (= "no minimum on this chip"); Math.max guards
+    // editor slips (0/negative). Product-level minimums no longer reach
+    // chips — whole-product cliffs are access grants, not size pricing.
     const vc = variantCliffs.get(v.id)
     if (vc?.minQty != null) return Math.max(1, vc.minQty)
-    if (productCliff?.minQty != null) return Math.max(1, productCliff.minQty)
     return 1
   }
 

@@ -110,7 +110,7 @@ describe('buildVariantLines — chip grouping (§rule 3)', () => {
   const noCliffs = new Map<string, CliffRow>()
 
   it('grind-only variants produce no chips (flat product)', () => {
-    const lines = buildVariantLines('p', 100000, null, [
+    const lines = buildVariantLines('p', 100000, [
       v('a', [['Varian', 'Grind Medium']]),
       v('b', [['Varian', 'Whole Beans']]),
     ], noCliffs)
@@ -118,7 +118,7 @@ describe('buildVariantLines — chip grouping (§rule 3)', () => {
   })
 
   it('collapses same-price grind family to one chip, beans-preferred canonical', () => {
-    const lines = buildVariantLines('p', 100000, null, [
+    const lines = buildVariantLines('p', 100000, [
       v('a', [['Size', '1kg'], ['Varian', 'Grind Fine']]),
       v('b', [['Size', '1kg'], ['Varian', 'Whole Beans']]),
       v('c', [['Size', '1kg'], ['Varian', 'Grind Medium']]),
@@ -129,7 +129,7 @@ describe('buildVariantLines — chip grouping (§rule 3)', () => {
 
   it('mixed-price size group splits per tier; single-member tier carries remainder', () => {
     // live shape: BRAZIL CERRADO 1kg — 421k Grind Coarse vs 424k {Med, Fine, Beans}
-    const lines = buildVariantLines('p', 424000, null, [
+    const lines = buildVariantLines('p', 424000, [
       v('c', [['Size', '1Kg'], ['Varian', 'Grind Coarse']], { price: 421000 }),
       v('m', [['Size', '1Kg'], ['Varian', 'Grind Medium']], { price: 424000 }),
       v('f', [['Size', '1Kg'], ['Varian', 'Grind Fine']], { price: 424000 }),
@@ -142,7 +142,7 @@ describe('buildVariantLines — chip grouping (§rule 3)', () => {
   })
 
   it('two multi-member tiers never render identical chip labels', () => {
-    const lines = buildVariantLines('p', 100000, null, [
+    const lines = buildVariantLines('p', 100000, [
       v('a', [['Size', '1kg'], ['Varian', 'Whole Beans']], { price: 421000 }),
       v('b', [['Size', '1kg'], ['Varian', 'Grind Fine']], { price: 421000 }),
       v('c', [['Size', '1kg'], ['Varian', 'Grind Medium']], { price: 424000 }),
@@ -156,7 +156,7 @@ describe('buildVariantLines — chip grouping (§rule 3)', () => {
     const cliffs = new Map<string, CliffRow>([
       ['k', { variantId: 'k', customPrice: 400000, minQty: 5 }],
     ])
-    const lines = buildVariantLines('p', 420000, null, [
+    const lines = buildVariantLines('p', 420000, [
       v('s', [['Size', '200g']], { price: 120000 }),
       v('k', [['Size', '1kg']], { price: 450000 }),
     ], cliffs)
@@ -165,40 +165,42 @@ describe('buildVariantLines — chip grouping (§rule 3)', () => {
     expect(lines[1]).toMatchObject({ effectivePrice: 120000, minQty: 1, label: '200g' })
   })
 
-  it('effective order: variant cliff > product cliff > marketplace variant price', () => {
-    const productCliff: CliffRow = { variantId: null, customPrice: 380000, minQty: 4 }
+  it('#307: whole-product cliff is INERT on chips — order is variant cliff > marketplace price', () => {
+    // The productCliff inheritance this replaces was the leak: a 1kg deal
+    // (380k) priced the 200g chip at 3.2x its list price. Default rows are
+    // now access grants only; chips never read them.
     const cliffs = new Map<string, CliffRow>([
       ['k', { variantId: 'k', customPrice: 350000, minQty: 10 }],
     ])
-    const lines = buildVariantLines('p', 400000, productCliff, [
+    const lines = buildVariantLines('p', 400000, [
       v('k', [['Size', '1kg']], { price: 450000 }),
       v('s', [['Size', '200g']], { price: 120000 }),
     ], cliffs)
     const k = lines.find((l) => l.variantId === 'k')!
     const s = lines.find((l) => l.variantId === 's')!
     expect(k).toMatchObject({ effectivePrice: 350000, minQty: 10 })
-    // no variant row → product-level cliff row applies
-    expect(s).toMatchObject({ effectivePrice: 380000, minQty: 4 })
+    // no variant row → marketplace variant price, min 1 — NOT a product cliff
+    expect(s).toMatchObject({ effectivePrice: 120000, minQty: 1 })
   })
 
-  it('variant cliff row wins MOQ even at min 1 (overrides product-level min)', () => {
-    const productCliff: CliffRow = { variantId: null, customPrice: 380000, minQty: 5 }
+  it('#307: variant row min 1 holds and null price falls to marketplace list, never a product-level value', () => {
     const cliffs = new Map<string, CliffRow>([
       ['k', { variantId: 'k', customPrice: null, minQty: 1 }],
     ])
-    const lines = buildVariantLines('p', 400000, productCliff, [
+    const lines = buildVariantLines('p', 400000, [
       v('k', [['Size', '1kg']], { price: 450000 }),
       v('s', [['Size', '200g']], { price: 120000 }),
     ], cliffs)
     const k = lines.find((l) => l.variantId === 'k')!
     const s = lines.find((l) => l.variantId === 's')!
-    // min 1 overrides the product 5; null customPrice falls through
-    expect(k).toMatchObject({ effectivePrice: 380000, minQty: 1 })
-    expect(s).toMatchObject({ effectivePrice: 380000, minQty: 5 })
+    // null customPrice on the variant row → list price; min 1 honored
+    expect(k).toMatchObject({ effectivePrice: 450000, minQty: 1 })
+    // untouched chip → plain list, min 1 (no inherited product min)
+    expect(s).toMatchObject({ effectivePrice: 120000, minQty: 1 })
   })
 
   it('chips sort by gram weight (200g before 1kg), cliff first', () => {
-    const lines = buildVariantLines('p', 100000, null, [
+    const lines = buildVariantLines('p', 100000, [
       v('kg', [['Size', '1kg']]),
       v('g200', [['Size', '200gram']]),
       v('g500', [['Size', '500 g']]),
