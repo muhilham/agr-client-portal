@@ -32,7 +32,7 @@ export async function GET(
   const { data: order } = await supabase
     .from('orders')
     .select(
-      'id, order_number, total_amount, shipping_cost, shipping_courier, shipping_address, created_at, order_items (product_name, unit_price, quantity, subtotal)'
+      'id, order_number, total_amount, shipping_cost, shipping_courier, shipping_address, created_at, order_items (product_name, unit_price, quantity, subtotal, variant_label)'
     )
     .eq('id', id)
     .single()
@@ -74,6 +74,7 @@ export async function GET(
     unit_price: number
     quantity: number
     subtotal: number
+    variant_label?: string | null
   }> | null) ?? []
 
   if (items.length === 0) {
@@ -95,7 +96,7 @@ export async function GET(
     postalCode: address?.postal_code,
     isPickup,
     items: items.map((item) => ({
-      productName: item.product_name,
+      productName: item.variant_label ? `${item.product_name} · ${item.variant_label}` : item.product_name,
       unitPrice: item.unit_price,
       quantity: item.quantity,
       subtotal: item.subtotal,

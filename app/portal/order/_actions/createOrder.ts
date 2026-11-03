@@ -185,13 +185,20 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
 
   const totalAmount = orderItems.reduce((sum, i) => sum + i.subtotal, 0)
 
-  // Build the items payload for the atomic function
+  // Build the items payload for the atomic function.
+  // #90 trust posture: variant_id + variant_label are resolved server-side
+  // from the catalog in validateCartItems — the browser only ever sends a
+  // variantId that must match an active chip, and the RPC snapshot label is
+  // derived text we computed, never caller text.
   const itemsPayload = orderItems.map((i) => ({
     product_id: i.productId,
     product_name: i.productName,
     unit_price: i.unitPrice,
     quantity: i.quantity,
     subtotal: i.subtotal,
+    ...(i.variantId
+      ? { variant_id: i.variantId, variant_label: i.variantLabel }
+      : {}),
   }))
 
   // Atomic insert: order + order_items in a single transaction
@@ -235,6 +242,7 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
       companyName: client.company_name,
       items: orderItems.map((i) => ({
         name: i.productName,
+        label: i.variantLabel ?? null,
         quantity: i.quantity,
         unitPrice: i.unitPrice,
       })),

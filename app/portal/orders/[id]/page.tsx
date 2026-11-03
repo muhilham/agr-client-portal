@@ -35,7 +35,7 @@ export default async function OrderDetailPage({ params }: Props) {
     .from('orders')
     .select(`
       id, order_number, fulfillment_status, payment_status, total_amount, shipping_cost, shipping_courier, shipping_service, shipping_etd, shipping_address, notes, created_at, updated_at,
-      order_items (id, product_name, unit_price, quantity, subtotal)
+      order_items (id, product_name, unit_price, quantity, subtotal, variant_id, variant_label)
     `)
     .eq('id', id)
     .single()
@@ -108,6 +108,7 @@ export default async function OrderDetailPage({ params }: Props) {
                 <div className="flex flex-col gap-0.5 flex-1 min-w-0">
                   <p className="text-brand-crema text-sm font-medium truncate">
                     {item.product_name}
+                    {item.variant_label ? ` · ${item.variant_label}` : ''}
                   </p>
                   <p className="text-brand-parchment text-xs">
                     {item.quantity} × {formatIDR(item.unit_price)}

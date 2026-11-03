@@ -32,10 +32,12 @@ export async function GET(
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
-  // Fetch order items
+  // Fetch order items — #90: product_id + variant snapshot let the portal
+  // re-cart the exact size chips; pre-migration rows carry nulls and fall
+  // back to product-level matching client-side.
   const { data: orderItems } = await supabase
     .from('order_items')
-    .select('product_name, unit_price, quantity')
+    .select('product_id, product_name, unit_price, quantity, variant_id, variant_label')
     .eq('order_id', orderId)
 
   return NextResponse.json({
