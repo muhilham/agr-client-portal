@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.16.0](https://github.com/muhilham/agr-client-portal/compare/v0.15.2...v0.16.0) (2026-11-03)
+
+
+### Features
+
+* **catalog:** size-variant chips, per-line cart/order path, reorder + invoice snapshots ([#90](https://github.com/muhilham/agr-client-portal/issues/90)) ([be66b60](https://github.com/muhilham/agr-client-portal/commit/be66b60579cbdaaeb2df21ec53df80179bcba6e7))
+
+
+### Bug Fixes
+
+* **#90:** isolate per-variant cliff rows from the flat catalog (agr-ops [#297](https://github.com/muhilham/agr-client-portal/issues/297) guard) ([dcd9b55](https://github.com/muhilham/agr-client-portal/commit/dcd9b558d9cb00674acc9f397cb4a8f2db124cd4))
+* **#90:** seeder idempotency must not use onConflict('client_id,product_id') ([591a898](https://github.com/muhilham/agr-client-portal/commit/591a898c02fad65e20b07386a6af201af1939424))
+* **#90:** variant cliff row must win MOQ even at min_qty=1 (override semantics) ([ad57fe8](https://github.com/muhilham/agr-client-portal/commit/ad57fe893c8ea2ed6ea9b0c3b6749425b8c26d1f))
+
 ## [0.15.2](https://github.com/muhilham/agr-client-portal/compare/v0.15.1...v0.15.2) (2026-11-02)
 
 
