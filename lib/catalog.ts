@@ -78,12 +78,15 @@ export async function getCatalogForClient(clientId: string): Promise<CatalogProd
 
   if (clientErr) throw clientErr
 
-  // product-level cliff rows: variant_id IS NULL (#90: whole-product default
-  // fallback price/MOQ). Variant cliff rows (variant_id NOT NULL) price the
-  // concrete chip below — they must never leak into the whole product.
+  // product-level cliff rows: variant_id IS NULL. #307: these are ACCESS
+  // GRANTS and FLAT-CARD pricing only — they never price or moq size chips
+  // (a default row on a sells-by-size product is inert for the chips).
+  // Variant cliff rows (variant_id NOT NULL) price the concrete chip —
+  // they must never leak into the whole product either.
   const flatCliffByProduct = new Map<string, CliffRow>()
   const variantCliffsByVariant = new Map<string, CliffRow>()
   const clientProductMeta = new Map<string, { row: ClientProductRow; product: ProductRow }>()
+  const rawBasePriceByProduct = new Map<string, number>()
 
   for (const cp of clientProducts ?? []) {
     const p = cp.products
@@ -113,6 +116,7 @@ export async function getCatalogForClient(clientId: string): Promise<CatalogProd
 
   function productOf(p: ProductRow, isAssigned: boolean, pid: string): CatalogProduct {
     const flatCliff = flatCliffByProduct.get(pid) ?? null
+    rawBasePriceByProduct.set(pid, Number(p.base_price))
     return {
       id: p.id,
       name: p.name,
@@ -158,15 +162,18 @@ export async function getCatalogForClient(clientId: string): Promise<CatalogProd
       if (!variants || variants.length === 0) continue
       const lines = buildVariantLines(
         pid,
-        // #307: no whole-product cliff is passed — a default row on a
-        // sells-by-size product neither prices nor moqs chips. Card-level
-        // effectivePrice above still serves FLAT products only (:158 skip).
-        Number(product.effectivePrice),
+        // #307: the marketplace LIST price only. Never product.effectivePrice
+        // — a default cliff row overrides that, and handing it here would
+        // re-arm the leak through the resolver's `v.price ?? basePrice`
+        // fallback. Card-level effectivePrice serves FLAT products only
+        // (products with no variant rows skip this loop; products whose
+        // variants resolve no chips return [] and keep their flat fields).
+        rawBasePriceByProduct.get(pid) ?? Number(product.effectivePrice),
         variants,
         variantCliffsByVariant
       )
-      // basePrice fallback: product.effectivePrice already includes the flat
-      // cliff override; variant rows carry their own marketplace price.
+      // basePrice fallback: raw product base_price (#307); variant rows carry
+      // their own marketplace price.
       if (lines.length > 0) {
         product.variants = lines
         // keep legacy flat fields coherent for variant-mode products: a stale

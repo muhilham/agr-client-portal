@@ -105,6 +105,8 @@ export interface CliffRow {
  * Default rows remain legal as pure access grants (NULL/NULL) and for flat
  * products, which never reach this function (catalog skips products with
  * no variants and prices those cards from the default row directly).
+ * `basePrice` MUST be the raw marketplace base_price — never a card-level
+ * effectivePrice, which a default cliff row overrides (#307 fallback leak).
  */
 export function buildVariantLines(
   productId: string,
