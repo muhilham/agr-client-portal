@@ -12,6 +12,10 @@ export const shippingSelectionSchema = z.discriminatedUnion('mode', [
 
 export const orderItemInputSchema = z.object({
   productId: z.string().uuid(),
+  // #90: concrete product_variants row for size-chip lines; omitted/absent
+  // for flat products. Server derives price + label from the catalog — the
+  // client can never inject a variant_label.
+  variantId: z.string().uuid().optional(),
   quantity: z.number().int().positive().max(10_000),
 })
 

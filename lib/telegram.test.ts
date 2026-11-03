@@ -107,3 +107,32 @@ describe('buildOrderNotificationMessage — regression guards', () => {
     expect(msg).toContain('Total: Rp 750.000')
   })
 })
+
+describe('buildOrderNotificationMessage — variant size lines (#90)', () => {
+  it('renders the server-derived size label on the item line', () => {
+    const msg = buildOrderNotificationMessage(
+      basePayload({
+        items: [
+          { name: 'Toraja Sapan', label: '1kg', quantity: 5, unitPrice: 400000 },
+          { name: 'Toraja Sapan', label: '200g', quantity: 3, unitPrice: 120000 },
+        ],
+      })
+    )
+    expect(msg).toContain('• Toraja Sapan · 1kg × 5 @ Rp 400.000')
+    expect(msg).toContain('• Toraja Sapan · 200g × 3 @ Rp 120.000')
+  })
+
+  it('flat items keep the old shape (no label → no separator)', () => {
+    const msg = buildOrderNotificationMessage(
+      basePayload({ items: [{ name: 'House Blend', label: null, quantity: 2, unitPrice: 90000 }] })
+    )
+    expect(msg).toContain('• House Blend × 2 @ Rp 90.000')
+  })
+
+  it('escapes HTML in the size label', () => {
+    const msg = buildOrderNotificationMessage(
+      basePayload({ items: [{ name: 'X', label: '1kg <promo>', quantity: 2, unitPrice: 1 }] })
+    )
+    expect(msg).toContain('• X · 1kg &lt;promo&gt; × 2')
+  })
+})

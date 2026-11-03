@@ -4,6 +4,7 @@ import { useState, useEffect, useReducer, useRef } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { CatalogProduct } from '@/lib/catalog'
+import { linesOf } from '@/lib/variantResolver'
 import { trackReorderFromReminder } from '@/lib/analytics/gtag'
 import { stripSrcParamFromUrl } from '@/lib/analytics/reminder-src'
 import ProductCard from './ProductCard'
@@ -14,6 +15,10 @@ type ReorderItem = {
   product_name: string
   unit_price: number
   quantity: number
+  // #90: variant snapshot; null on pre-migration orders (legacy fallback)
+  product_id?: string | null
+  variant_id?: string | null
+  variant_label?: string | null
 }
 
 type ReorderState = {
@@ -50,6 +55,9 @@ export type CartItem = {
   quantity: number
   minQty: number
   unit: string
+  /** #90: concrete variant line bound to the cart row; null = flat row. */
+  variantId?: string | null
+  variantLabel?: string | null
 }
 
 type Client = {
@@ -117,16 +125,30 @@ export default function CatalogView({ client, email, catalog, reorderOrderId, fr
         const catalogMap = new Map(
           catalog.map((p) => [p.name.toLowerCase(), p])
         )
+        const catalogById = new Map(catalog.map((p) => [p.id, p]))
         const unavailable: string[] = []
         const newQuantities: Record<string, number> = {}
 
         for (const item of data.items as ReorderItem[]) {
-          const product = catalogMap.get(item.product_name.toLowerCase())
-          if (product && item.quantity >= product.minQty) {
-            newQuantities[product.id] = item.quantity
-          } else {
+          const product =
+            (item.product_id ? catalogById.get(item.product_id) : undefined) ??
+            catalogMap.get(item.product_name.toLowerCase())
+          if (!product) {
             unavailable.push(item.product_name)
+            continue
           }
+          // #90: variant rows re-cart by variant_id; legacy rows (variant_id
+          // null, pre-migration) fall back to the product's default chip —
+          // the cliff line first, else the smallest size (resolver sort).
+          const lines = linesOf(product)
+          const line = item.variant_id
+            ? lines.find((l) => l.variantId === item.variant_id)
+            : lines[0]
+          if (!line || item.quantity < line.minQty) {
+            unavailable.push(item.variant_label ? `${item.product_name} · ${item.variant_label}` : item.product_name)
+            continue
+          }
+          newQuantities[line.lineId] = item.quantity
         }
 
         setQuantities(newQuantities)
@@ -156,20 +178,26 @@ export default function CatalogView({ client, email, catalog, reorderOrderId, fr
   const showTabs = myProducts.length > 0 && otherProducts.length > 0
   const displayedProducts = showTabs ? (tab === 'mine' ? myProducts : otherProducts) : catalog
 
-  const handleQuantityChange = (productId: string, qty: number) => {
-    setQuantities((prev) => ({ ...prev, [productId]: qty }))
+  const handleQuantityChange = (lineId: string, qty: number) => {
+    setQuantities((prev) => ({ ...prev, [lineId]: qty }))
   }
 
-  const cart: CartItem[] = catalog
-    .filter((p) => (quantities[p.id] ?? 0) >= p.minQty)
-    .map((p) => ({
-      productId: p.id,
-      productName: p.name,
-      unitPrice: p.effectivePrice,
-      quantity: quantities[p.id],
-      minQty: p.minQty,
-      unit: p.unit,
-    }))
+  // #90: the cart holds ORDER LINES, not products — a variant-mode product
+  // can contribute several rows (1kg × 5 and 200g × 10 side by side).
+  const cart: CartItem[] = catalog.flatMap((p) =>
+    linesOf(p)
+      .filter((l) => (quantities[l.lineId] ?? 0) >= l.minQty)
+      .map((l) => ({
+        productId: p.id,
+        productName: p.name,
+        unitPrice: l.effectivePrice,
+        quantity: quantities[l.lineId],
+        minQty: l.minQty,
+        unit: p.unit,
+        variantId: p.variants.length > 0 ? l.variantId : null,
+        variantLabel: p.variants.length > 0 ? l.label : null,
+      }))
+  )
 
   const greeting = getGreeting()
 
@@ -295,7 +323,7 @@ export default function CatalogView({ client, email, catalog, reorderOrderId, fr
                   <ProductCard
                     key={product.id}
                     product={product}
-                    quantity={quantities[product.id] ?? 0}
+                    quantities={quantities}
                     onQuantityChange={handleQuantityChange}
                   />
                 ))}

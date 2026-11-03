@@ -1,5 +1,6 @@
 import { getSupabaseAdmin } from '@/lib/supabase/admin'
 import { getCatalogForClient } from '@/lib/catalog'
+import { linesOf } from '@/lib/variantResolver'
 import {
   getBiteshipLocation,
   getBiteshipRates,
@@ -47,6 +48,9 @@ export interface ValidatedItem {
   quantity: number
   subtotal: number
   shipWeightGrams: number
+  /** #90: resolved chip line (server-derived label — never caller text). */
+  variantId?: string | null
+  variantLabel?: string | null
 }
 
 export interface PickupLocation {
@@ -62,7 +66,7 @@ export type CartValidationResult =
 
 export async function validateCartItems(
   clientId: string,
-  items: { productId: string; quantity: number }[]
+  items: { productId: string; variantId?: string | null; quantity: number }[]
 ): Promise<CartValidationResult> {
   const catalog = await getCatalogForClient(clientId)
   const catalogMap = new Map(catalog.map((p) => [p.id, p]))
@@ -74,17 +78,33 @@ export async function validateCartItems(
     if (!product) {
       return { ok: false, error: 'INVALID_CART' }
     }
-    if (item.quantity < product.minQty) {
+    // #90: resolve the concrete ORDER LINE before trusting price/MOQ/weight.
+    // Variant-mode products must carry the chip's variantId (a flat-shaped
+    // request against a chip product is a stale/tampered cart, not a
+    // whole-product order); flat products must not carry one.
+    const lines = linesOf(product)
+    const line =
+      product.variants.length > 0
+        ? lines.find((l) => l.variantId === item.variantId)
+        : item.variantId == null
+          ? lines[0]
+          : undefined
+    if (!line) {
+      return { ok: false, error: 'INVALID_CART' }
+    }
+    if (item.quantity < line.minQty) {
       return { ok: false, error: 'INVALID_CART' }
     }
     validatedItems.push({
       productId: product.id,
       productName: product.name,
       unit: product.unit,
-      unitPrice: product.effectivePrice,
+      unitPrice: line.effectivePrice,
       quantity: item.quantity,
-      subtotal: product.effectivePrice * item.quantity,
-      shipWeightGrams: product.shipWeightGrams,
+      subtotal: line.effectivePrice * item.quantity,
+      shipWeightGrams: line.shipWeightGrams,
+      variantId: line.variantId ?? null,
+      variantLabel: product.variants.length > 0 ? line.label : null,
     })
   }
 
@@ -151,7 +171,7 @@ export async function resolveDefaultAddress(clientId: string): Promise<AddressDi
 
 export async function loadShippingContext(
   clientId: string,
-  items: { productId: string; quantity: number }[]
+  items: { productId: string; variantId?: string | null; quantity: number }[]
 ): Promise<ShippingContext> {
   const supabase = getSupabaseAdmin()
 
@@ -206,7 +226,7 @@ export async function loadShippingContext(
   //    ignores per-line quantity and rates only `weight`, so per-unit weights
   //    underquote multi-quantity orders. Other couriers price identically either way.
   const biteshipItems = validatedItems.map((i) => ({
-    name: i.productName,
+    name: i.variantLabel ? `${i.productName} · ${i.variantLabel}` : i.productName,
     value: i.subtotal,
     weight: i.shipWeightGrams * i.quantity,
     quantity: 1,

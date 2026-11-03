@@ -3,19 +3,32 @@
 import Image from 'next/image'
 import { useEffect, useState } from 'react'
 import { CatalogProduct } from '@/lib/catalog'
+import { linesOf } from '@/lib/variantResolver'
 import { imageDisplayState } from '@/lib/image-fallback'
 
 type Props = {
   product: CatalogProduct
-  quantity: number
-  onQuantityChange: (productId: string, qty: number) => void
+  /** Qty per ORDER LINE id: variantId for #90 chips, productId for flat rows. */
+  quantities: Record<string, number>
+  onQuantityChange: (lineId: string, qty: number) => void
 }
 
-export default function ProductCard({ product, quantity, onQuantityChange }: Props) {
+export default function ProductCard({ product, quantities, onQuantityChange }: Props) {
+  // #90: variant-mode products render one chip per price-unambiguous size
+  // line (lib/variantResolver §rule 3); everything else keeps the flat card.
+  const lines = linesOf(product)
+  const isVariantMode = product.variants.length > 0
+  const [selectedLineId, setSelectedLineId] = useState<string>(lines[0]?.lineId ?? product.id)
+  const activeLine = lines.find((l) => l.lineId === selectedLineId) ?? lines[0]
+  const lineId = activeLine?.lineId ?? product.id
+  const minQty = activeLine?.minQty ?? product.minQty
+  const unitLabel = isVariantMode && activeLine ? activeLine.label : product.unit
+  const activeQty = quantities[lineId] ?? 0
+
   const [hint, setHint] = useState<'none' | 'live' | 'adjusted'>('none')
   const [failedUrl, setFailedUrl] = useState<string | null>(null)
-  const hintId = `minqty-hint-${product.id}`
-  const showsHint = product.minQty > 1 && hint !== 'none'
+  const hintId = `minqty-hint-${lineId}`
+  const showsHint = minQty > 1 && hint !== 'none'
 
   useEffect(() => {
     if (hint !== 'adjusted') return
@@ -25,7 +38,7 @@ export default function ProductCard({ product, quantity, onQuantityChange }: Pro
   }, [hint])
 
   const setLiveHint = (qty: number) => {
-    if (product.minQty > 1 && qty > 0 && qty < product.minQty) {
+    if (minQty > 1 && qty > 0 && qty < minQty) {
       setHint('live')
       return
     }
@@ -36,25 +49,25 @@ export default function ProductCard({ product, quantity, onQuantityChange }: Pro
   const handleChange = (value: string) => {
     const num = parseInt(value, 10)
     if (isNaN(num) || num < 0) {
-      onQuantityChange(product.id, 0)
+      onQuantityChange(lineId, 0)
       setHint('none')
       return
     }
-    onQuantityChange(product.id, num)
+    onQuantityChange(lineId, num)
     setLiveHint(num)
   }
 
   const handleBlur = (value: string) => {
     const num = parseInt(value, 10)
     if (isNaN(num) || num < 0 || num === 0) {
-      onQuantityChange(product.id, 0)
+      onQuantityChange(lineId, 0)
       setHint('none')
       return
     }
 
-    if (num < product.minQty) {
-      onQuantityChange(product.id, product.minQty)
-      if (product.minQty > 1) setHint('adjusted')
+    if (num < minQty) {
+      onQuantityChange(lineId, minQty)
+      if (minQty > 1) setHint('adjusted')
     }
   }
 
@@ -87,7 +100,9 @@ export default function ProductCard({ product, quantity, onQuantityChange }: Pro
           <h3 className="text-brand-crema font-medium text-base leading-tight">
             {product.name}
           </h3>
-          <p className="text-brand-parchment text-xs">{product.unit}</p>
+          {!isVariantMode && (
+            <p className="text-brand-parchment text-xs">{product.unit}</p>
+          )}
           {product.description && (
             <p className="text-brand-parchment text-xs opacity-70 line-clamp-2">
               {product.description}
@@ -95,20 +110,64 @@ export default function ProductCard({ product, quantity, onQuantityChange }: Pro
           )}
         </div>
 
-        <p className="text-brand-crema font-semibold text-base">
-          {formatIDR(product.effectivePrice)}
-        </p>
+        {isVariantMode ? (
+          /* #90 size chips: label + effective price; cliff min visible pre-typing */
+          <div
+            className="flex flex-wrap gap-2"
+            role="radiogroup"
+            aria-label="Ukuran"
+            data-testid={`variant-chips-${product.id}`}
+          >
+            {product.variants.map((v) => {
+              const selected = v.variantId === activeLine?.variantId
+              return (
+                <button
+                  key={v.variantId}
+                  type="button"
+                  role="radio"
+                  aria-checked={selected}
+                  data-testid={`variant-chip-${v.variantId}`}
+                  onClick={() => {
+                    setSelectedLineId(v.variantId)
+                    setHint('none')
+                  }}
+                  className={`min-h-[44px] px-3.5 rounded-lg border text-sm flex items-center gap-1.5 transition-colors ${
+                    selected
+                      ? 'bg-brand-crema border-brand-crema text-brand-black font-semibold'
+                      : 'border-[rgba(245,235,201,0.25)] text-brand-parchment hover:bg-[rgba(245,235,201,0.08)]'
+                  }`}
+                >
+                  <span>{v.label}</span>
+                  <span className="font-semibold">· {formatIDR(v.effectivePrice)}</span>
+                  {v.minQty > 1 && (
+                    <span
+                      className={`text-[11px] font-bold ${
+                        selected ? 'text-brand-black/70' : 'text-brand-honey'
+                      }`}
+                    >
+                      · min {v.minQty}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        ) : (
+          <p className="text-brand-crema font-semibold text-base">
+            {formatIDR(product.effectivePrice)}
+          </p>
+        )}
 
         {/* Qty input */}
         <div className="mt-auto">
           <div className="flex items-center gap-2">
             <button
               onClick={() => {
-                const nextQuantity = Math.max(0, quantity - 1)
-                onQuantityChange(product.id, nextQuantity)
+                const nextQuantity = Math.max(0, activeQty - 1)
+                onQuantityChange(lineId, nextQuantity)
                 setLiveHint(nextQuantity)
               }}
-              data-testid={`qty-decrement-${product.id}`}
+              data-testid={`qty-decrement-${lineId}`}
               className="w-10 h-10 rounded-lg border border-[rgba(245,235,201,0.25)] text-brand-crema hover:bg-[rgba(245,235,201,0.08)] transition-colors flex items-center justify-center text-lg font-medium min-w-[40px] min-h-[44px]"
               aria-label="Kurangi"
             >
@@ -118,21 +177,21 @@ export default function ProductCard({ product, quantity, onQuantityChange }: Pro
               type="number"
               inputMode="numeric"
               min={0}
-              value={quantity === 0 ? '' : quantity}
+              value={activeQty === 0 ? '' : activeQty}
               onChange={(e) => handleChange(e.target.value)}
               onBlur={(e) => handleBlur(e.target.value)}
-              placeholder={`Min ${product.minQty}`}
-              data-testid={`qty-input-${product.id}`}
+              placeholder={`Min ${minQty}`}
+              data-testid={`qty-input-${lineId}`}
               aria-describedby={showsHint ? hintId : undefined}
               className="flex-1 h-10 min-h-[44px] rounded-lg border border-[rgba(245,235,201,0.25)] bg-transparent text-brand-crema text-center text-[16px] focus:outline-none focus:border-brand-crema placeholder:text-brand-parchment placeholder:opacity-50"
             />
             <button
               onClick={() => {
-                const nextQuantity = quantity + 1
-                onQuantityChange(product.id, nextQuantity)
+                const nextQuantity = activeQty + 1
+                onQuantityChange(lineId, nextQuantity)
                 setLiveHint(nextQuantity)
               }}
-              data-testid={`qty-increment-${product.id}`}
+              data-testid={`qty-increment-${lineId}`}
               className="w-10 h-10 rounded-lg border border-[rgba(245,235,201,0.25)] text-brand-crema hover:bg-[rgba(245,235,201,0.08)] transition-colors flex items-center justify-center text-lg font-medium min-w-[40px] min-h-[44px]"
               aria-label="Tambah"
             >
@@ -143,19 +202,19 @@ export default function ProductCard({ product, quantity, onQuantityChange }: Pro
             <p
               id={hintId}
               role="status"
-              data-testid={`minqty-hint-${product.id}`}
+              data-testid={`minqty-hint-${lineId}`}
               className={`mt-1 text-xs ${hint === 'adjusted' ? 'text-brand-honey' : 'text-brand-parchment opacity-60'}`}
             >
               {hint === 'adjusted'
-                ? `Minimum ${product.minQty} ${product.unit} — jumlah disesuaikan.`
-                : `Minimum ${product.minQty} ${product.unit}.`}
+                ? `Minimum ${minQty} ${unitLabel} — jumlah disesuaikan.`
+                : `Minimum ${minQty} ${unitLabel}.`}
             </p>
           )}
         </div>
 
-        {product.minQty > 1 && (
+        {minQty > 1 && (
           <p className="text-xs text-brand-parchment opacity-60">
-            Minimum pemesanan: {product.minQty} {product.unit}
+            Minimum pemesanan: {minQty} {unitLabel}
           </p>
         )}
       </div>

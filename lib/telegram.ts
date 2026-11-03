@@ -3,6 +3,9 @@ import { PICKUP_COURIER_CODE, FREE_COURIER_CODE, MANUAL_COURIER_CODE } from '@/l
 
 type NotificationItem = {
   name: string
+  /** #90: size chip snapshot; admins pack by line, so the size must be in
+   *  the notification ("Toraja Sapan · 1kg × 5"), not just the product. */
+  label?: string | null
   quantity: number
   unitPrice: number
 }
@@ -101,7 +104,7 @@ export function buildOrderNotificationMessage(payload: OrderNotificationPayload)
   const { orderNumber, clientName, companyName, items, totalAmount, shippingCost, shippingCourier, shippingService, createdAt } = payload
 
   const itemLines = items
-    .map((i) => `  • ${escapeHtml(i.name)} × ${i.quantity} @ ${formatIDR(i.unitPrice)}`)
+    .map((i) => `  • ${escapeHtml(i.name)}${i.label ? ` · ${escapeHtml(i.label)}` : ''} × ${i.quantity} @ ${formatIDR(i.unitPrice)}`)
     .join('\n')
 
   // Cafe name is what admins recognize the client by; person name is secondary.

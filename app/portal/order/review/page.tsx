@@ -46,7 +46,17 @@ function canCallRates(key: string): boolean {
 }
 
 function itemsKey(items: CartItem[]): string {
-  return items.map((i) => `${i.productId}:${i.quantity}`).join(',')
+  // #90: a variant-mode product contributes several lines — key on the
+  // order line (productId + variantId), not just the product.
+  return items.map((i) => `${i.productId}:${i.variantId ?? ''}:${i.quantity}`).join(',')
+}
+
+// #90: ship item input for rates/pickup/create — variantId rides along so
+// the server resolves per-line price, MOQ and weight (omitted for flat).
+function toOrderItemInput(i: CartItem): { productId: string; variantId?: string; quantity: number } {
+  return i.variantId
+    ? { productId: i.productId, variantId: i.variantId, quantity: i.quantity }
+    : { productId: i.productId, quantity: i.quantity }
 }
 
 async function loadShippingRates(
@@ -61,7 +71,7 @@ async function loadShippingRates(
   setSelectedRate(null)
   setIsManual(false)
   const result = await getShippingRates({
-    items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+    items: items.map(toOrderItemInput),
   })
   if (requestIdRef.current !== myRequestId) return
   if (!result.ok) {
@@ -94,7 +104,7 @@ async function loadPickupInfo(
 ) {
   setPickupState({ kind: 'loading' })
   const result = await getPickupInfo({
-    items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+    items: items.map(toOrderItemInput),
   })
   if (requestIdRef.current !== myRequestId) return // a newer request superseded this one — ignore
   if (!result.ok) {
@@ -207,7 +217,7 @@ export default function OrderReviewPage() {
 
     const result = await createOrder({
       cartToken,
-      items: cart.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+      items: cart.map(toOrderItemInput),
       notes: notes.trim() || undefined,
       fulfillmentMethod,
       shippingSelection,
@@ -268,14 +278,17 @@ export default function OrderReviewPage() {
           <div className="divide-y divide-[rgba(245,235,201,0.1)]">
             {cart.map((item) => (
               <div
-                key={item.productId}
+                key={`${item.productId}:${item.variantId ?? ''}`}
                 className="px-5 py-4 flex items-center justify-between gap-4"
-                data-testid={`order-item-${item.productId}`}
+                data-testid={`order-item-${item.variantId ?? item.productId}`}
               >
                 <div className="flex flex-col gap-0.5 flex-1 min-w-0">
-                  <p className="text-brand-crema text-sm font-medium truncate">{item.productName}</p>
+                  <p className="text-brand-crema text-sm font-medium truncate">
+                    {item.productName}
+                    {item.variantLabel ? ` · ${item.variantLabel}` : ''}
+                  </p>
                   <p className="text-brand-parchment text-xs">
-                    {item.quantity} {item.unit} × {formatIDR(item.unitPrice)}
+                    {item.quantity} {item.variantLabel ?? item.unit} × {formatIDR(item.unitPrice)}
                   </p>
                 </div>
                 <p className="text-brand-crema text-sm font-semibold whitespace-nowrap">

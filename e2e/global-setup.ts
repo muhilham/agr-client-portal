@@ -131,21 +131,32 @@ export default async function globalSetup() {
     console.log(`[setup] Using existing product: ${productId}`)
   }
 
-  // Assign product to test client (idempotent via upsert)
-  const { error: assignErr } = await supabase
+  // Assign product to test client. Idempotency is an explicit
+  // select-then-insert, NOT upsert(onConflict:'client_id,product_id'):
+  // agr-ops migration 068 drops the 2-column unique constraint in favor of
+  // an expression unique index (client_id, product_id, COALESCE(variant_id,
+  // sentinel)), which that conflict target can no longer infer — the upsert
+  // would hard-fail 42P10 post-deploy and this warn-only handler would leave
+  // the test client silently unassigned.
+  const { data: existingAssign } = await supabase
     .from('client_products')
-    .upsert(
-      {
-        client_id: clientId,
-        product_id: productId,
-        custom_price: 85000,
-        min_qty: 1,
-      },
-      { onConflict: 'client_id,product_id', ignoreDuplicates: true }
-    )
+    .select('id')
+    .eq('client_id', clientId)
+    .eq('product_id', productId)
+    .is('variant_id', null)
+    .maybeSingle()
 
-  if (assignErr && !assignErr.message.includes('duplicate')) {
-    console.warn(`[setup] client_products upsert warning: ${assignErr.message}`)
+  if (!existingAssign) {
+    const { error: assignErr } = await supabase.from('client_products').insert({
+      client_id: clientId,
+      product_id: productId,
+      custom_price: 85000,
+      min_qty: 1,
+      variant_id: null,
+    })
+    if (assignErr && !assignErr.message.includes('duplicate')) {
+      console.warn(`[setup] client_products insert warning: ${assignErr.message}`)
+    }
   }
 
   // ── 3b. Ensure a global-only product exists (not assigned to test client) ──
