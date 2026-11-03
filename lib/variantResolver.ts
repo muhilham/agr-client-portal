@@ -126,9 +126,12 @@ export function buildVariantLines(
     return v.price ?? basePrice
   }
   const effMin = (v: ResolverVariant): number => {
+    // Contract: variant row > product-level row. A variant cliff row ALWAYS
+    // wins, including min_qty = 1 (= "no minimum on this chip") overriding a
+    // product-level minimum; Math.max guards editor slips (0/negative).
     const vc = variantCliffs.get(v.id)
-    if (vc?.minQty != null && vc.minQty > 1) return vc.minQty
-    if (productCliff?.minQty != null && productCliff.minQty > 0) return productCliff.minQty
+    if (vc?.minQty != null) return Math.max(1, vc.minQty)
+    if (productCliff?.minQty != null) return Math.max(1, productCliff.minQty)
     return 1
   }
 

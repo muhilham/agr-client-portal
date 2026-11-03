@@ -181,6 +181,22 @@ describe('buildVariantLines — chip grouping (§rule 3)', () => {
     expect(s).toMatchObject({ effectivePrice: 380000, minQty: 4 })
   })
 
+  it('variant cliff row wins MOQ even at min 1 (overrides product-level min)', () => {
+    const productCliff: CliffRow = { variantId: null, customPrice: 380000, minQty: 5 }
+    const cliffs = new Map<string, CliffRow>([
+      ['k', { variantId: 'k', customPrice: null, minQty: 1 }],
+    ])
+    const lines = buildVariantLines('p', 400000, productCliff, [
+      v('k', [['Size', '1kg']], { price: 450000 }),
+      v('s', [['Size', '200g']], { price: 120000 }),
+    ], cliffs)
+    const k = lines.find((l) => l.variantId === 'k')!
+    const s = lines.find((l) => l.variantId === 's')!
+    // min 1 overrides the product 5; null customPrice falls through
+    expect(k).toMatchObject({ effectivePrice: 380000, minQty: 1 })
+    expect(s).toMatchObject({ effectivePrice: 380000, minQty: 5 })
+  })
+
   it('chips sort by gram weight (200g before 1kg), cliff first', () => {
     const lines = buildVariantLines('p', 100000, null, [
       v('kg', [['Size', '1kg']]),
