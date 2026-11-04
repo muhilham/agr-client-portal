@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.16.1](https://github.com/muhilham/agr-client-portal/compare/v0.16.0...v0.16.1) (2026-11-04)
+
+
+### Bug Fixes
+
+* **catalog:** drop productCliff→chip leak; default rows price flat cards only ([#307](https://github.com/muhilham/agr-client-portal/issues/307)) ([7fe32e8](https://github.com/muhilham/agr-client-portal/commit/7fe32e8587830790387740cd224151ad48f0b61a))
+* **catalog:** resolver basePrice fallback takes raw base_price, never cliff-overridden effectivePrice ([#307](https://github.com/muhilham/agr-client-portal/issues/307)) ([e378772](https://github.com/muhilham/agr-client-portal/commit/e378772db229fe56540067bb49ba8b35af01ff13))
+
 ## [0.16.0](https://github.com/muhilham/agr-client-portal/compare/v0.15.2...v0.16.0) (2026-11-03)
 
 
