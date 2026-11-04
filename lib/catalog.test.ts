@@ -153,6 +153,64 @@ describe('getCatalogForClient — size chips (#90 §rule 3)', () => {
     expect(p.variants[1]).toMatchObject({ label: '1kg', effectivePrice: 421000, minQty: 1 })
   })
 
+  it('#307: a whole-product cliff row does not price the chips of a sells-by-size product', async () => {
+    // Legacy/leak shape: ONE default row (variant_id null) priced every chip
+    // at 380k. Post-#307 the default grants access only; chips are list.
+    RESULT['products'] = { data: [productRow({ is_global: true })], error: null }
+    RESULT['client_products'] = {
+      data: [{ custom_price: 380000, min_qty: 4, variant_id: null, products: productRow() }],
+      error: null,
+    }
+    RESULT['product_variants'] = {
+      data: [
+        variantRow({ id: 'v-200', price: 500000 }, [['Size', '200g']]),
+        variantRow({ id: 'v-1k', price: 421000 }, [['Size', '1kg']]),
+      ],
+      error: null,
+    }
+    const { getCatalogForClient } = await import('./catalog')
+    const catalog = await getCatalogForClient(CLIENT_ID)
+    const p = catalog.find((c) => c.id === 'p-1')!
+    expect(p.variants.map((x) => x.variantId)).toEqual(['v-200', 'v-1k'])
+    expect(p.variants[0]).toMatchObject({ label: '200g', effectivePrice: 500000, minQty: 1 })
+    expect(p.variants[1]).toMatchObject({ label: '1kg', effectivePrice: 421000, minQty: 1 })
+  })
+
+  it('#307: flat products keep pricing from the whole-product cliff (no chips involved)', async () => {
+    RESULT['products'] = { data: [productRow({ is_global: true })], error: null }
+    RESULT['client_products'] = {
+      data: [{ custom_price: 380000, min_qty: 4, variant_id: null, products: productRow() }],
+      error: null,
+    }
+    RESULT['product_variants'] = { data: [], error: null } // no variants at all -> stays flat
+    const { getCatalogForClient } = await import('./catalog')
+    const catalog = await getCatalogForClient(CLIENT_ID)
+    const p = catalog.find((c) => c.id === 'p-1')!
+    expect(p.variants).toEqual([])
+    expect(p).toMatchObject({ effectivePrice: 380000, minQty: 4 })
+  })
+
+  it('#307: a size variant WITHOUT a marketplace price falls back to base_price, never the default cliff price', async () => {
+    // The resolver's `v.price ?? basePrice` fallback re-arms the #307 leak if
+    // the call site hands it the card-level effectivePrice (which a default
+    // cliff row overrides). Dormant in prod (product_variants.price is NOT
+    // NULL) — this binds the CONTEST: the basePrice argument must be the raw
+    // marketplace base_price.
+    RESULT['products'] = { data: [productRow({ is_global: true })], error: null } // base_price 100000
+    RESULT['client_products'] = {
+      data: [{ custom_price: 380000, min_qty: 4, variant_id: null, products: productRow() }],
+      error: null,
+    }
+    RESULT['product_variants'] = {
+      data: [variantRow({ id: 'v-1k', price: null }, [['Size', '1kg']])],
+      error: null,
+    }
+    const { getCatalogForClient } = await import('./catalog')
+    const catalog = await getCatalogForClient(CLIENT_ID)
+    const p = catalog.find((c) => c.id === 'p-1')!
+    expect(p.variants[0]).toMatchObject({ variantId: 'v-1k', effectivePrice: 100000, minQty: 1 })
+  })
+
   it('splits a mixed-price size group into one chip per price tier', async () => {
     // live shape: BRAZIL CERRADO 1kg — 421k (Grind Coarse only) vs
     // 424k (Medium + Fine + Whole Beans)
