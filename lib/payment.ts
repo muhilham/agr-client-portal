@@ -4,7 +4,7 @@
 export const AGROASTERY_WA_NUMBER = process.env.NEXT_PUBLIC_AGROASTERY_WA ?? '628979092726'
 
 export const BANK_ACCOUNTS = [
-  { bank: 'Bank BCA', account: '0657237047', a_n: 'Muhammad Ilham' },
+  { bank: 'Bank BCA', account: '5235253906', a_n: 'CV Indonesia Roastery' },
   { bank: 'Bank Mandiri', account: '1270009924133', a_n: 'Muhammad Ilham' },
 ] as const
 
