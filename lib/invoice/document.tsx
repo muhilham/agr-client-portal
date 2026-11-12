@@ -1,7 +1,7 @@
 import React from 'react'
 import { Document, Page, View, Text, Image, StyleSheet } from '@react-pdf/renderer'
 
-const AGROASTERY = {
+export const AGROASTERY = {
   name: 'AGROASTERY',
   address1: 'Jalan Kemang Barat No.7i',
   address2: 'Jakarta Selatan',
