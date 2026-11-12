@@ -6,8 +6,9 @@ const AGROASTERY = {
   address1: 'Jalan Kemang Barat No.7i',
   address2: 'Jakarta Selatan',
   address3: 'DKI Jakarta, Indonesia',
-  bankAccountName: 'MUHAMMAD ILHAM',
-  bcaAccount: '0657237047',
+  bcaAccountName: 'CV INDONESIA ROASTERY',
+  mandiriAccountName: 'MUHAMMAD ILHAM',
+  bcaAccount: '5235253906',
   mandiriAccount: '1270009924133',
   logoUrl: 'https://agroastery.com/assets/agroastery-logo.svg',
 }
@@ -260,12 +261,12 @@ export function InvoiceDocument({ data }: { data: InvoiceData }) {
           <View style={s.paymentAccountRow}>
             <Text style={s.paymentBankLabel}>Bank BCA</Text>
             <Text style={s.paymentAccountVal}>{AGROASTERY.bcaAccount}</Text>
-            <Text style={s.paymentText}>  a.n. {AGROASTERY.bankAccountName}</Text>
+            <Text style={s.paymentText}>  a.n. {AGROASTERY.bcaAccountName}</Text>
           </View>
           <View style={s.paymentAccountRow}>
             <Text style={s.paymentBankLabel}>Bank Mandiri</Text>
             <Text style={s.paymentAccountVal}>{AGROASTERY.mandiriAccount}</Text>
-            <Text style={s.paymentText}>  a.n. {AGROASTERY.bankAccountName}</Text>
+            <Text style={s.paymentText}>  a.n. {AGROASTERY.mandiriAccountName}</Text>
           </View>
           <Text style={s.paymentText}>{" "}</Text>
           <Text style={[s.paymentText, { fontFamily: 'Helvetica-Bold' }]}>
