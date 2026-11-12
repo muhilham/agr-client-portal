@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.16.2](https://github.com/muhilham/agr-client-portal/compare/v0.16.1...v0.16.2) (2026-11-12)
+
+
+### Bug Fixes
+
+* **payment:** change BCA account to 5235253906 a.n. CV Indonesia Roastery ([4e87d22](https://github.com/muhilham/agr-client-portal/commit/4e87d22a65f936eac2af3d6d08550d25d2932c50))
+
+
+### Tests
+
+* **payment:** pin bank account values and cross-check checkout vs invoice sources ([661e37f](https://github.com/muhilham/agr-client-portal/commit/661e37f9fa1f1b0ba6f07c6c7a8f50f26d79646d))
+
 ## [0.16.1](https://github.com/muhilham/agr-client-portal/compare/v0.16.0...v0.16.1) (2026-11-04)
 
 
