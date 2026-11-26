@@ -9,6 +9,7 @@ import { trackReorderFromReminder } from '@/lib/analytics/gtag'
 import { stripSrcParamFromUrl } from '@/lib/analytics/reminder-src'
 import ProductCard from './ProductCard'
 import StickyCart from './StickyCart'
+import { formatIDR } from '@/lib/payment'
 import LogoutButton from './LogoutButton'
 
 type ReorderItem = {
@@ -73,6 +74,7 @@ type Props = {
   reorderOrderId?: string
   /** True when the session arrived via a WhatsApp stock-reminder link (`?src=reminder`). */
   fromReminder?: boolean
+  credit?: { hasCredit: boolean; balance: number } | null
 }
 
 function getGreeting(): string {
@@ -88,7 +90,7 @@ function getGreeting(): string {
   return 'Selamat malam'
 }
 
-export default function CatalogView({ client, email, catalog, reorderOrderId, fromReminder }: Props) {
+export default function CatalogView({ client, email, catalog, reorderOrderId, fromReminder, credit }: Props) {
   const [quantities, setQuantities] = useState<Record<string, number>>({})
   const [tab, setTab] = useState<'mine' | 'other'>('mine')
   const [reorderState, dispatch] = useReducer(reorderReducer, {
@@ -214,6 +216,15 @@ export default function CatalogView({ client, email, catalog, reorderOrderId, fr
               height={19}
             />
             <div className="flex items-center gap-4">
+              {credit && (
+                <Link
+                  href="/portal/credits"
+                  className="text-brand-parchment text-sm hover:text-brand-crema transition-colors"
+                  data-testid="credits-nav-link"
+                >
+                  Kredit
+                </Link>
+              )}
               <Link
                 href="/portal/orders"
                 className="text-brand-parchment text-sm hover:text-brand-crema transition-colors"
@@ -263,6 +274,24 @@ export default function CatalogView({ client, email, catalog, reorderOrderId, fr
               Masuk sebagai {email}
             </p>
           </div>
+
+          {/* #411: balance card — renders only when the client has >=1
+              ledger entry (decision 6); permanent once granted, even at 0. */}
+          {credit && (
+            <Link
+              href="/portal/credits"
+              className="rounded-xl border border-brand-honey/40 bg-[rgba(245,235,201,0.06)] px-5 py-4 flex items-center justify-between hover:bg-[rgba(245,235,201,0.1)] transition-colors"
+              data-testid="credit-balance-card"
+            >
+              <div className="flex flex-col">
+                <p className="text-brand-parchment text-xs uppercase tracking-wider">Saldo Credit</p>
+                <p className="text-brand-honey font-semibold text-lg mt-0.5" data-testid="credit-balance-amount">
+                  {formatIDR(credit.balance)}
+                </p>
+              </div>
+              <span className="text-brand-parchment text-sm">Riwayat &rarr;</span>
+            </Link>
+          )}
 
           {/* Catalog */}
           {catalog.length === 0 ? (

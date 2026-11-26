@@ -31,5 +31,22 @@ export default async function PortalPage({
 
   const catalog = await getCatalogForClient(client.id)
 
-  return <CatalogView client={client} email={user.email} catalog={catalog} reorderOrderId={reorder} fromReminder={isFromReminder} />
+  // #411 decision 6: read the ledger through the client-RLS view; the
+  // card renders only when ≥1 entry exists (count>0), never on balance alone.
+  const [{ data: creditBal }, { count: creditEntryCount }] = await Promise.all([
+    supabase
+      .from('client_credit_balances')
+      .select('balance')
+      .eq('client_id', client.id)
+      .maybeSingle(),
+    supabase
+      .from('credit_entries')
+      .select('id', { count: 'exact', head: true })
+      .eq('client_id', client.id),
+  ])
+  const credit = (creditEntryCount ?? 0) > 0
+    ? { hasCredit: true, balance: Number(creditBal?.balance ?? 0) }
+    : null
+
+  return <CatalogView client={client} email={user.email} catalog={catalog} reorderOrderId={reorder} fromReminder={isFromReminder} credit={credit} />
 }

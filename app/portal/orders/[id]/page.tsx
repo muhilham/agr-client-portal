@@ -34,7 +34,7 @@ export default async function OrderDetailPage({ params }: Props) {
   const { data: order } = await supabase
     .from('orders')
     .select(`
-      id, order_number, fulfillment_status, payment_status, total_amount, shipping_cost, shipping_courier, shipping_service, shipping_etd, shipping_address, notes, created_at, updated_at,
+      id, order_number, fulfillment_status, payment_status, total_amount, credit_applied, shipping_cost, shipping_courier, shipping_service, shipping_etd, shipping_address, notes, created_at, updated_at,
       order_items (id, product_name, unit_price, quantity, subtotal, variant_id, variant_label)
     `)
     .eq('id', id)
@@ -249,6 +249,7 @@ export default async function OrderDetailPage({ params }: Props) {
             orderNumber={order.order_number}
             recipientName={shippingAddress?.recipient_name ?? 'Customer'}
             grandTotal={order.total_amount + (order.shipping_cost ?? 0)}
+            creditApplied={Number(order.credit_applied ?? 0)}
           />
         )}
 

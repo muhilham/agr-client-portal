@@ -22,7 +22,7 @@ export default defineConfig({
     // ── Auth setup (runs first, saves browser sessions) ──
     {
       name: 'auth-setup',
-      testMatch: '**/setup/*.setup.ts',
+      testMatch: '**/setup/auth.setup.ts',
       use: { ...devices['Desktop Chrome'] },
     },
 
@@ -43,6 +43,23 @@ export default defineConfig({
       testMatch: ['**/tests/login.spec.ts', '**/tests/unauthorized.spec.ts'],
       dependencies: ['auth-setup'],
       use: { ...devices['Desktop Chrome'] },
+    },
+
+    // ── #411 credit chain: own session setup (local stack can't mint SSR
+    //    cookies via the magiclink flow — see e2e/setup/credits.setup.ts) ──
+    {
+      name: 'credits-setup',
+      testMatch: '**/setup/credits.setup.ts',
+      use: { ...devices['Desktop Chrome'] },
+    },
+    {
+      name: 'credits',
+      testMatch: ['**/tests/credits.spec.ts'],
+      dependencies: ['credits-setup'],
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: path.join(__dirname, 'e2e/.auth/credits-client.json'),
+      },
     },
   ],
 
