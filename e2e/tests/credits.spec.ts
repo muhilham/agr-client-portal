@@ -89,6 +89,9 @@ test.describe('Credit chain (#411)', () => {
     await page.goto('/portal')
     await expect(page.getByTestId('credit-balance-card')).toHaveCount(0)
     await expect(page.getByTestId('credits-nav-link')).toHaveCount(0)
+    // F9 pin: the direct URL must bounce too — no credit UI anywhere.
+    await page.goto('/portal/credits')
+    await expect(page).toHaveURL(/\/portal$/, { timeout: 10_000 })
   })
 
   test('first grant makes balance card appear', async () => {
