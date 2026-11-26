@@ -11,10 +11,13 @@ export function PaymentCard({
   orderNumber,
   recipientName,
   grandTotal,
+  creditApplied = 0,
 }: {
   orderNumber: string
   recipientName: string
   grandTotal: number
+  /** #411: ledger SPEND snapshot; transfer amount + WA copy use the remainder. */
+  creditApplied?: number
 }) {
   const [copied, setCopied] = useState<string | null>(null)
 
@@ -41,7 +44,9 @@ export function PaymentCard({
     })
   }
 
-  const waUrl = getWhatsAppUrl({ orderNumber, recipientName, grandTotal })
+  // #411: AC — amount due = total − credit; WA message shows the remainder.
+  const amountDue = Math.max(grandTotal - creditApplied, 0)
+  const waUrl = getWhatsAppUrl({ orderNumber, recipientName, grandTotal: amountDue })
 
   return (
     <section data-testid="payment-card">
@@ -57,9 +62,16 @@ export function PaymentCard({
           <div className="flex items-center justify-between">
             <span className="text-brand-parchment text-sm">Total yang harus dibayar</span>
             <span className="text-brand-honey text-lg font-semibold" data-testid="payment-grand-total">
-              {formatIDR(grandTotal)}
+              {formatIDR(amountDue)}
             </span>
           </div>
+
+          {creditApplied > 0 && (
+            <div className="flex items-center justify-between" data-testid="payment-credit-line">
+              <span className="text-brand-parchment text-xs">Credit terpakai</span>
+              <span className="text-brand-parchment text-xs">-{formatIDR(creditApplied)}</span>
+            </div>
+          )}
 
           {/* Divider */}
           <div className="border-t border-[rgba(245,235,201,0.1)]" />

@@ -37,7 +37,7 @@ async function ConfirmationContent({
     .from('orders')
     .select(
       `id, order_number, fulfillment_status, payment_status, total_amount,
-       shipping_cost, shipping_courier, shipping_service, shipping_etd,
+       credit_applied, shipping_cost, shipping_courier, shipping_service, shipping_etd,
        shipping_address, notes, created_at`
     )
     .eq('id', orderId)
@@ -47,6 +47,9 @@ async function ConfirmationContent({
 
   const items = (order as unknown as { order_items: OrderItems }).order_items ?? []
   const grandTotal = Number(order.total_amount) + (order.shipping_cost != null ? Number(order.shipping_cost) : 0)
+  // #411: the SPEND the RPC recorded — single number, never recomputed here.
+  const creditApplied = Number(order.credit_applied ?? 0)
+  const amountDue = Math.max(grandTotal - creditApplied, 0)
 
   return (
     <main className="min-h-screen bg-brand-black flex flex-col items-center justify-center px-4">
@@ -138,6 +141,23 @@ async function ConfirmationContent({
                 {formatIDR(grandTotal)}
               </p>
             </div>
+            {/* #411: deduction row only when credit applied (zero → invisible) */}
+            {creditApplied > 0 && (
+              <>
+                <div className="flex items-center justify-between">
+                  <p className="text-brand-parchment text-sm">Credit</p>
+                  <p className="text-brand-crema text-sm font-semibold" data-testid="confirmation-credit-line">
+                    -{formatIDR(creditApplied)}
+                  </p>
+                </div>
+                <div className="flex items-center justify-between">
+                  <p className="text-brand-crema text-sm font-medium">Sisa bayar</p>
+                  <p className="text-brand-honey text-base font-semibold" data-testid="confirmation-remaining-line">
+                    {formatIDR(amountDue)}
+                  </p>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Shipping promise */}
@@ -182,7 +202,17 @@ async function ConfirmationContent({
         </div>
 
         {/* Payment instructions — UNPAID only */}
-        {order.payment_status === 'UNPAID' && (
+        {/* #411: full-cover (amountDue 0) replaces the transfer block with
+            the "lunas" copy (issue mechanism section). */}
+        {order.payment_status === 'UNPAID' && amountDue === 0 && (
+          <div className="w-full rounded-xl border border-[rgba(245,235,201,0.25)] bg-brand-midnight px-5 py-4" data-testid="confirmation-lunas">
+            <p className="text-brand-honey text-base font-semibold">Lunas dengan credit</p>
+            <p className="text-brand-parchment text-xs mt-1 leading-relaxed">
+              Pesanan tertutup penuh oleh credit. Tidak perlu transfer.
+            </p>
+          </div>
+        )}
+        {order.payment_status === 'UNPAID' && amountDue > 0 && (
           <div className="w-full rounded-xl border border-[rgba(245,235,201,0.25)] bg-brand-midnight overflow-hidden">
             <div className="px-5 py-3 border-b border-[rgba(245,235,201,0.15)]">
               <p className="text-brand-parchment text-xs uppercase tracking-wider">
@@ -194,7 +224,8 @@ async function ConfirmationContent({
               <div className="flex items-center justify-between">
                 <span className="text-brand-parchment text-sm">Total yang harus dibayar</span>
                 <span className="text-brand-honey text-lg font-semibold">
-                  {formatIDR(grandTotal)}
+                  {/* #411: remainder after credit, never the raw grand total */}
+                  {formatIDR(amountDue)}
                 </span>
               </div>
 

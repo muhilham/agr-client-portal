@@ -216,11 +216,20 @@ export default async function globalSetup() {
 
   if (staleOrders && staleOrders.length > 0) {
     const ids = staleOrders.map((o) => o.id)
+    // #411: credit_entries FKs to orders/clients with ON DELETE NO ACTION
+    // (append-only audit ledger). Orders carrying SPEND rows cannot be
+    // deleted until their ledger rows go first — same pattern as agr-ops
+    // tests/helpers/db.ts.
+    await supabase.from('credit_entries').delete().in('order_id', ids)
     await supabase.from('order_items').delete().in('order_id', ids)
     await supabase.from('notification_logs').delete().in('order_id', ids)
     await supabase.from('orders').delete().in('id', ids)
     console.log(`[setup] Cleaned up ${staleOrders.length} stale test order(s)`)
   }
+
+  // #411: wipe this client's credit ledger too (GRANT rows pin the client
+  // by NO ACTION FK as well). Runs even with zero stale orders.
+  await supabase.from('credit_entries').delete().eq('client_id', clientId)
 
   console.log('[setup] Global setup complete.')
 }
