@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.17.0](https://github.com/muhilham/agr-client-portal/compare/v0.16.2...v0.17.0) (2026-11-26)
+
+
+### Features
+
+* **credits:** client-facing credit surfaces ([#411](https://github.com/muhilham/agr-client-portal/issues/411)) ([cc35af5](https://github.com/muhilham/agr-client-portal/commit/cc35af5e6c5f3679d333c7291957057d3178bcc5))
+
+
+### Bug Fixes
+
+* **credits:** pass-3 — PaymentCard dup line, zero-entry gate, honest over-balance test ([00da2b1](https://github.com/muhilham/agr-client-portal/commit/00da2b1e5a5376b4020f6f7bf16401741df49e78))
+
+
+### Tests
+
+* **credits:** pin cross-client RLS isolation through the user JWT ([7d3a2ff](https://github.com/muhilham/agr-client-portal/commit/7d3a2ffa5171b8450dc27d889e5eb79a743de409))
+* **credits:** pin the zero-entry /portal/credits redirect (pass-4) ([0516e2f](https://github.com/muhilham/agr-client-portal/commit/0516e2f8561ea0f88927823d87c1de1dec8a92b4))
+
 ## [0.16.2](https://github.com/muhilham/agr-client-portal/compare/v0.16.1...v0.16.2) (2026-11-12)
 
 
