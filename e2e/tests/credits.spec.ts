@@ -162,4 +162,67 @@ test.describe('Credit chain (#411)', () => {
     await page.goto('/portal/credits')
     await expect(page.getByTestId('credit-row-refund')).toBeVisible()
   })
+
+  test('client JWT sees ONLY its own rows in the view and ledger', async () => {
+    // Regression pin for the PR-review finding: without
+    // WITH (security_invoker = true) on client_credit_balances, the
+    // view ran as its BYPASSRLS owner and leaked every client's
+    // balance to any logged-in portal user. This test queries
+    // through PostgREST with a REAL user JWT — the production path.
+    const email = process.env.E2E_TEST_CLIENT_EMAIL!
+    const anon = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { auth: { persistSession: false } }
+    )
+    const { error: signInErr } = await anon.auth.signInWithPassword({
+      email,
+      password: process.env.E2E_TEST_PASSWORD ?? 'credits-e2e-pass-123',
+    })
+    expect(signInErr).toBeNull()
+
+    // Self-grant so the test does not depend on earlier specs' state.
+    await grant(supabase, 1000)
+
+    // Seed a DIFFERENT client with its own grant, invisible to the user above.
+    const otherEmail = `creditother-${Date.now()}@playwright.test`
+    const { data: otherClient, error: otherErr } = await supabase
+      .from('clients')
+      .insert({ name: 'Credit Other', company_name: 'CO', email: otherEmail, is_active: true })
+      .select('id')
+      .single()
+    expect(otherErr).toBeNull()
+    const { error: grantOtherErr } = await supabase.rpc('staff_add_credit', {
+      p_client_id: otherClient!.id,
+      p_kind: 'GRANT',
+      p_amount: 999000,
+      p_reason: 'E2E isolation probe',
+      p_author_id: null,
+    })
+    expect(grantOtherErr).toBeNull()
+
+    try {
+      const { data: balRows, error: viewErr } = await anon
+        .from('client_credit_balances')
+        .select('client_id, balance')
+      expect(viewErr).toBeNull()
+      const ids = (balRows ?? []).map((r: { client_id: string }) => r.client_id)
+      expect(ids).not.toContain(otherClient!.id)
+      for (const r of balRows ?? []) {
+        expect(r.client_id).toBe(getTestIds().clientId)
+      }
+
+      const { data: entryRows, error: entErr } = await anon
+        .from('credit_entries')
+        .select('client_id')
+      expect(entErr).toBeNull()
+      expect((entryRows ?? []).length).toBeGreaterThan(0)
+      for (const r of entryRows ?? []) {
+        expect(r.client_id).toBe(getTestIds().clientId)
+      }
+    } finally {
+      await supabase.from('credit_entries').delete().eq('client_id', otherClient!.id)
+      await supabase.from('clients').delete().eq('id', otherClient!.id)
+    }
+  })
 })
