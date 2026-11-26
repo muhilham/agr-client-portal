@@ -2,9 +2,10 @@
  * credits.spec.ts — #411 client-facing credit chain
  *
  * Grant (service-role staff_add_credit, same RPC ops uses) →
- * home balance card → order under balance → "Lunas dengan credit" →
- * SPEND row + balance view → /portal/credits history → over-balance
- * order → remainder in PaymentCard → ops cancel → REFUND row visible.
+ * home balance card → full-cover order → "Lunas dengan credit" →
+ * SPEND row + balance view → over-balance order → clamped SPEND +
+ * remainder in PaymentCard → /portal/credits history → ops cancel →
+ * REFUND row visible → user-JWT RLS isolation pin.
  *
  * Runs against the same local Supabase stack as agr-ops e2e
  * (.env.e2e), where migration 075_client_credits is applied.
@@ -81,6 +82,8 @@ const supabase = adminSupabase()
 test.describe('Credit chain (#411)', () => {
   test.describe.configure({ mode: 'serial' })
   let fullCoverOrderId: string | null = null
+  let fullCoverTotal = 0
+  let overBalanceBaseline = 0
 
   test('client with no entries sees no credit UI', async ({ page }) => {
     await page.goto('/portal')
@@ -93,7 +96,7 @@ test.describe('Credit chain (#411)', () => {
     expect(bal).toBe(150000)
   })
 
-  test('home shows card; over-balance order keeps remainder in PaymentCard', async ({
+  test('full-cover order: lunas copy, SPEND row, balance derived', async ({
     page,
   }) => {
     await mockBiteshipLocation(page)
@@ -101,31 +104,19 @@ test.describe('Credit chain (#411)', () => {
     await expect(page.getByTestId('credit-balance-card')).toBeVisible()
     await expect(page.getByTestId('credit-balance-amount')).toContainText('150.000')
 
-    // First product price is 85.000 (custom_price) or 100.000 base.
-    // Grant is below any price? No — pick the GLOBAL product path? Simpler:
-    // order a product priced above balance is not guaranteed; instead read
-    // the review-page grand total and assert the deduction relationship.
     await addFirstProduct(page)
     await page.getByTestId('fulfillment-option-pickup').click()
     await page.getByTestId('confirm-order-button').click()
     await expect(page).toHaveURL(/\/portal\/order\/confirmation/, { timeout: 15_000 })
 
     const totalText = (await page.getByTestId('confirmation-grand-total').textContent())!
-    const total = Number(totalText!.replace(/\D/g, ''))
-    const applied = Math.min(150000, total)
+    const total = Number(totalText.replace(/\D/g, ''))
+    // Balance is 150.000 and the seeded product is 85.000 — full cover.
+    expect(total).toBeLessThanOrEqual(150000)
+    await expect(page.getByTestId('confirmation-lunas')).toBeVisible()
+    await expect(page.getByTestId('confirmation-card')).toBeVisible()
 
-    if (applied >= total) {
-      // Full cover: lunas copy, no transfer block
-      await expect(page.getByTestId('confirmation-lunas')).toBeVisible()
-      await expect(page.getByTestId('confirmation-card')).toBeVisible()
-    } else {
-      await expect(page.getByTestId('confirmation-remaining-line')).toContainText(
-        (total - applied).toLocaleString('id-ID')
-      )
-    }
-
-    // Ledger + derived order state
-    expect(await balance(supabase)).toBe(Math.max(150000 - total, 0))
+    expect(await balance(supabase)).toBe(150000 - total)
     const { clientId } = getTestIds()
     const { data: order } = await supabase
       .from('orders')
@@ -134,15 +125,75 @@ test.describe('Credit chain (#411)', () => {
       .order('created_at', { ascending: false })
       .limit(1)
       .single()
-    expect(Number(order!.credit_applied)).toBe(applied)
-    fullCoverOrderId = applied >= total ? order!.id : null
+    expect(Number(order!.credit_applied)).toBe(total)
+    fullCoverOrderId = order!.id
+    fullCoverTotal = total
+    overBalanceBaseline = 150000 - total
+  })
+
+  test('over-balance order: SPEND = remaining balance, PaymentCard shows remainder', async ({
+    page,
+  }) => {
+    // AC 'Portal order > balance': deduction clamps to the balance
+    // and the transfer amount is the remainder. The 85k product above
+    // left the balance below one unit price, so this order is
+    // genuinely over-balance. (Pass-3 reviewer F7: the previous test
+    // named this case but never exercised PaymentCard — F8's duplicate
+    // credit line slipped through exactly because of that.)
+    const balBefore = overBalanceBaseline
+    expect(balBefore).toBeGreaterThan(0)
+
+    await mockBiteshipLocation(page)
+    await page.goto('/portal')
+    await addFirstProduct(page)
+    await page.getByTestId('fulfillment-option-pickup').click()
+    await page.getByTestId('confirm-order-button').click()
+    await expect(page).toHaveURL(/\/portal\/order\/confirmation/, { timeout: 15_000 })
+
+    const total = Number(
+      (await page.getByTestId('confirmation-grand-total').textContent())!.replace(/\D/g, '')
+    )
+    expect(total).toBeGreaterThan(balBefore) // precondition: over-balance
+
+    await expect(page.getByTestId('confirmation-remaining-line')).toContainText(
+      (total - balBefore).toLocaleString('id-ID')
+    )
+    // SPEND clamps to the balance (contract), draining it to zero.
+    expect(await balance(supabase)).toBe(0)
+
+    const { clientId } = getTestIds()
+    const { data: order } = await supabase
+      .from('orders')
+      .select('id, credit_applied')
+      .eq('client_id', clientId)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single()
+    expect(Number(order!.credit_applied)).toBe(balBefore)
+
+    // PaymentCard (UNPAID order detail): exactly ONE credit line,
+    // grand total is the remainder.
+    await page.goto(`/portal/orders/${order!.id}`)
+    const creditLine = page.getByTestId('payment-credit-line')
+    await expect(creditLine).toHaveCount(1)
+    await expect(creditLine).toContainText(balBefore.toLocaleString('id-ID'))
+    await expect(page.getByTestId('payment-grand-total')).toContainText(
+      (total - balBefore).toLocaleString('id-ID')
+    )
   })
 
   test('credits history page lists grant and spend', async ({ page }) => {
     await page.goto('/portal/credits')
-    await expect(page.getByTestId('credit-row-grant')).toBeVisible()
-    await expect(page.getByTestId('credit-row-spend')).toBeVisible()
-    await expect(page.getByTestId('credits-balance')).toBeVisible()
+    // Rows carry no data-testid; assert on the rendered labels:
+    // exactly one grant row and two spend rows (full-cover + the
+    // over-balance order), newest first, and the drained Rp 0 balance
+    // (contract: card permanent once ≥1 entry, even at Rp 0).
+    await expect(page.getByText('Pemberian kredit')).toHaveCount(1)
+    await expect(page.getByText('Dipakai untuk pesanan')).toHaveCount(2)
+    await expect(page.getByText('+Rp 150.000')).toBeVisible()
+    await expect(page.getByText('-Rp 85.000')).toBeVisible()
+    await expect(page.getByText('-Rp 65.000')).toBeVisible()
+    await expect(page.getByTestId('credits-balance')).toContainText('Rp 0')
   })
 
   test('ops cancel refunds via REFUND row; portal card shows it', async ({ page }) => {
@@ -150,14 +201,15 @@ test.describe('Credit chain (#411)', () => {
     // Trigger the refund exactly as the ops route does (same service RPC).
     const { error } = await supabase.rpc('credit_refund', { p_order_id: fullCoverOrderId! })
     expect(error).toBeNull()
-    // Full cover → refund restores the entire grant.
-    expect(await balance(supabase)).toBe(150000)
+    // Refund restores exactly the full-cover order's applied amount
+    // (the over-balance order's SPEND of the leftover balance stays).
+    expect(await balance(supabase)).toBe(fullCoverTotal)
     expect(await kinds(supabase)).toContain('REFUND')
 
     // Idempotent: second refund writes nothing (AC: cancel twice refunds once)
     const again = await supabase.rpc('credit_refund', { p_order_id: fullCoverOrderId! })
     expect(again.error).toBeNull()
-    expect(await kinds(supabase)).toEqual(['GRANT', 'SPEND', 'REFUND'])
+    expect(await kinds(supabase)).toEqual(['GRANT', 'SPEND', 'SPEND', 'REFUND'])
 
     await page.goto('/portal/credits')
     await expect(page.getByTestId('credit-row-refund')).toBeVisible()

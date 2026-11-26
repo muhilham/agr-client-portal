@@ -97,13 +97,6 @@ export function PaymentCard({
             </div>
           ))}
 
-          {creditApplied > 0 && (
-            <div className="flex items-center justify-between" data-testid="payment-credit-line">
-              <span className="text-brand-parchment text-xs">Credit terpakai</span>
-              <span className="text-brand-parchment text-xs">-{formatIDR(creditApplied)}</span>
-            </div>
-          )}
-
           {/* Divider */}
           <div className="border-t border-[rgba(245,235,201,0.1)]" />
 

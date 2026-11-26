@@ -43,6 +43,12 @@ export default async function CreditsPage() {
       .eq('client_id', client.id),
   ])
 
+  // Reviewer F9: contract says zero-credit clients see NO credit UI
+  // anywhere — a direct /portal/credits hit by a client that has never
+  // had an entry (shared link, stale tab after a grant→revoke wipe)
+  // must bounce home, not render the balance card.
+  if (!entries || entries.length === 0 || count === 0) redirect('/portal')
+
   const { data: bal } = await supabase
     .from('client_credit_balances')
     .select('balance')
