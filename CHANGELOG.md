@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.18.0](https://github.com/muhilham/agr-client-portal/compare/v0.17.0...v0.18.0) (2026-11-27)
+
+
+### Features
+
+* **portal:** address picker at checkout for multi-branch clients ([#101](https://github.com/muhilham/agr-client-portal/issues/101)) ([19e2632](https://github.com/muhilham/agr-client-portal/commit/19e2632df834138ea7be215ba91f2f6e03703111))
+
 ## [0.17.0](https://github.com/muhilham/agr-client-portal/compare/v0.16.2...v0.17.0) (2026-11-26)
 
 
