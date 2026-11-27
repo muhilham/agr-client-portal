@@ -27,9 +27,99 @@ export interface AddressDisplay {
   // on-demand couriers (lalamove/gojek/grab); postal-only lanes exclude them.
   latitude?: number | null
   longitude?: number | null
+  // #101: identity of the chosen address row. Carried into the order snapshot
+  // so ops can tell which branch an order ships to (the packing slip already
+  // prints snapshot.label/phone) without a second lookup.
+  id?: string
+  label?: string | null
+  phone?: string | null
 }
 
 export type ShippingAddressSnapshot = AddressDisplay & { backfilled?: boolean }
+
+/**
+ * #101: a client address as offered at checkout. `created_at` only exists for
+ * the deterministic pre-selection order (see sortAddresses) — it is never
+ * rendered or snapshotted.
+ */
+export interface AddressOption extends AddressDisplay {
+  id: string
+  label: string | null
+  is_default: boolean | null
+  created_at: string | null
+}
+
+const ADDRESS_COLUMNS =
+  'id, label, recipient_name, phone, address_line, postal_code, latitude, longitude, is_default, created_at'
+
+/**
+ * #101: canonical address ordering — staff default first, then oldest first.
+ * Identical to the rule agr-ops migration 029 used to backfill order snapshots
+ * (`is_default DESC NULLS LAST, created_at ASC`), so a checkout default and a
+ * historical backfill can never disagree. Ties break on id to keep the order
+ * total (two rows can share created_at, and 9 live clients have no default).
+ */
+export function sortAddresses(addresses: AddressOption[]): AddressOption[] {
+  return [...addresses].sort((a, b) => {
+    // `is_default` is nullable in practice; only an explicit true counts, so a
+    // NULL row sorts with the non-defaults instead of producing an unstable,
+    // non-transitive comparator.
+    const aDefault = a.is_default === true
+    const bDefault = b.is_default === true
+    if (aDefault !== bDefault) return aDefault ? -1 : 1
+    const at = a.created_at ?? ''
+    const bt = b.created_at ?? ''
+    if (at !== bt) return at < bt ? -1 : 1
+    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0
+  })
+}
+
+export function addressToDisplay(address: AddressOption): AddressDisplay {
+  return {
+    id: address.id,
+    label: address.label,
+    phone: address.phone ?? null,
+    recipient_name: address.recipient_name,
+    address_line: address.address_line,
+    postal_code: address.postal_code,
+    latitude: address.latitude ?? null,
+    longitude: address.longitude ?? null,
+  }
+}
+
+/**
+ * #101: labels are optional free text in the ops dashboard (1 of 39 live rows
+ * is blank), so the picker always needs a readable fallback per position.
+ * Defined in a client-safe module and re-exported for server/test consumers.
+ */
+export { addressLabelText } from './addressLabel'
+
+export type AddressSelection =
+  | { ok: true; address: AddressOption; addresses: AddressOption[] }
+  | { ok: false; error: 'NO_ADDRESS' | 'INVALID_ADDRESS' }
+
+/**
+ * #101 trust posture: `requestedId` is only a selector. The caller-supplied id
+ * is matched against the rows already scoped to this client — it is never fed
+ * into a query — so a foreign id can only ever produce INVALID_ADDRESS, never
+ * another client's address. An unknown id fails CLOSED: silently falling back
+ * to the default would snapshot an address the client did not pick.
+ */
+export function selectCheckoutAddress(
+  rows: AddressOption[],
+  requestedId?: string | null
+): AddressSelection {
+  const addresses = sortAddresses(rows)
+  if (addresses.length === 0) return { ok: false, error: 'NO_ADDRESS' }
+
+  if (requestedId) {
+    const match = addresses.find((a) => a.id === requestedId)
+    if (!match) return { ok: false, error: 'INVALID_ADDRESS' }
+    return { ok: true, address: match, addresses }
+  }
+
+  return { ok: true, address: addresses[0], addresses }
+}
 
 export interface RateOption {
   courier_code: string
@@ -127,51 +217,35 @@ export async function getPickupLocation(): Promise<PickupLocation | null> {
 }
 
 export type ShippingContext =
-  | { ok: true; kind: 'free_shipping'; address: AddressDisplay }
-  | { ok: true; kind: 'rates'; address: AddressDisplay; originLocation: BiteshipLocation; rates: BiteshipRate[]; validatedItems: ValidatedItem[] }
-  | { ok: false; error: 'NO_ADDRESS' | 'INVALID_CART' | 'ORIGIN_NOT_CONFIGURED' | 'RATES_UNAVAILABLE' }
+  | { ok: true; kind: 'free_shipping'; address: AddressDisplay; addresses: AddressOption[] }
+  | { ok: true; kind: 'rates'; address: AddressDisplay; addresses: AddressOption[]; originLocation: BiteshipLocation; rates: BiteshipRate[]; validatedItems: ValidatedItem[] }
+  | { ok: false; error: 'NO_ADDRESS' | 'INVALID_ADDRESS' | 'INVALID_CART' | 'ORIGIN_NOT_CONFIGURED' | 'RATES_UNAVAILABLE' }
 
-export async function resolveDefaultAddress(clientId: string): Promise<AddressDisplay | null> {
-  const supabase = getSupabaseAdmin()
-
-  let addressRow = await supabase
+export async function listClientAddresses(clientId: string): Promise<AddressOption[]> {
+  const { data, error } = await getSupabaseAdmin()
     .from('addresses')
-    .select('recipient_name, address_line, postal_code, latitude, longitude')
+    .select(ADDRESS_COLUMNS)
     .eq('client_id', clientId)
-    .eq('is_default', true)
-    .maybeSingle()
-    .then(({ data, error }) => {
-      if (error) {
-        console.error('[Shipping] address query error:', error)
-        return null
-      }
-      return data
-    })
 
-  if (!addressRow) {
-    addressRow = await supabase
-      .from('addresses')
-      .select('recipient_name, address_line, postal_code, latitude, longitude')
-      .eq('client_id', clientId)
-      .limit(1)
-      .maybeSingle()
-      .then(({ data }) => data ?? null)
+  if (error) {
+    console.error('[Shipping] address query error:', error)
+    return []
   }
 
-  if (!addressRow) return null
+  return (data ?? []) as AddressOption[]
+}
 
-  return {
-    recipient_name: addressRow.recipient_name,
-    address_line: addressRow.address_line,
-    postal_code: addressRow.postal_code,
-    latitude: addressRow.latitude ?? null,
-    longitude: addressRow.longitude ?? null,
-  }
+export async function resolveCheckoutAddress(
+  clientId: string,
+  addressId?: string | null
+): Promise<AddressSelection> {
+  return selectCheckoutAddress(await listClientAddresses(clientId), addressId)
 }
 
 export async function loadShippingContext(
   clientId: string,
-  items: { productId: string; variantId?: string | null; quantity: number }[]
+  items: { productId: string; variantId?: string | null; quantity: number }[],
+  addressId?: string | null
 ): Promise<ShippingContext> {
   const supabase = getSupabaseAdmin()
 
@@ -184,23 +258,23 @@ export async function loadShippingContext(
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const hasFreeShipping = (clientRow as any)?.has_free_shipping === true
-  if (hasFreeShipping) {
-    const address = await resolveDefaultAddress(clientId)
-    if (!address) {
-      return { ok: false, error: 'NO_ADDRESS' }
-    }
 
+  // 1. Destination address — the client's pick when given, else the staff
+  //    default. Owned-by-client scoping happens inside resolveCheckoutAddress.
+  const selection = await resolveCheckoutAddress(clientId, addressId)
+  if (!selection.ok) {
+    return { ok: false, error: selection.error }
+  }
+  const address = addressToDisplay(selection.address)
+  const addresses = selection.addresses
+
+  if (hasFreeShipping) {
     return {
       ok: true,
       kind: 'free_shipping',
       address,
+      addresses,
     }
-  }
-
-  // 1. Default address (fallback to any address if no default)
-  const address = await resolveDefaultAddress(clientId)
-  if (!address) {
-    return { ok: false, error: 'NO_ADDRESS' }
   }
 
   // 2. Items
@@ -257,7 +331,7 @@ export async function loadShippingContext(
     return { ok: false, error: 'RATES_UNAVAILABLE' }
   }
 
-  return { ok: true, kind: 'rates', address, originLocation: origin, rates, validatedItems }
+  return { ok: true, kind: 'rates', address, addresses, originLocation: origin, rates, validatedItems }
 }
 
 export function groupRatesByCourier(rates: BiteshipRate[]): RateOption[] {

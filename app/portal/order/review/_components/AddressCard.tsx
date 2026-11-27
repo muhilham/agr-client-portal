@@ -13,6 +13,11 @@ export default function AddressCard({ address }: AddressCardProps) {
       className="rounded-xl border border-[rgba(245,235,201,0.25)] bg-brand-midnight px-5 py-4 flex flex-col gap-1"
     >
       <p className="text-brand-parchment text-xs uppercase tracking-wider">Alamat Pengiriman</p>
+      {address.label ? (
+        <p className="text-brand-honey text-xs font-medium" data-testid="address-label">
+          {address.label}
+        </p>
+      ) : null}
       <p className="text-brand-crema text-sm font-medium">{address.recipient_name}</p>
       <p className="text-brand-parchment text-sm">{address.address_line}</p>
       <p className="text-brand-parchment text-sm">{address.postal_code}</p>

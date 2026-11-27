@@ -8,16 +8,18 @@ import { getShippingRates } from '../_actions/getShippingRates'
 import { getPickupInfo } from '../_actions/getPickupInfo'
 import { CartItem } from '../../_components/CatalogView'
 import AddressCard, { AddressCardEmpty } from './_components/AddressCard'
+import AddressPicker from './_components/AddressPicker'
 import CourierPicker from './_components/CourierPicker'
 import { CourierSkeletonRows, PickupSkeletonCard } from './_components/ShippingSkeletons'
 import FulfillmentToggle, { type FulfillmentMethod } from './_components/FulfillmentToggle'
 import PickupInfoCard from './_components/PickupInfoCard'
-import type { RateOption, AddressDisplay, PickupLocation } from '@/lib/shipping'
+import type { RateOption, AddressDisplay, AddressOption, PickupLocation } from '@/lib/shipping'
+import { ratesKey } from '@/lib/ratesKey'
 
 type RatesState =
   | { kind: 'loading' }
-  | { kind: 'free_shipping'; address: AddressDisplay }
-  | { kind: 'ready'; rates: RateOption[]; address: AddressDisplay }
+  | { kind: 'free_shipping'; address: AddressDisplay; addresses: AddressOption[] }
+  | { kind: 'ready'; rates: RateOption[]; address: AddressDisplay; addresses: AddressOption[] }
   | { kind: 'no_address' }
   | { kind: 'error'; message: string }
 
@@ -45,14 +47,10 @@ function canCallRates(key: string): boolean {
   return true
 }
 
-function itemsKey(items: CartItem[]): string {
-  // #90: a variant-mode product contributes several lines — key on the
-  // order line (productId + variantId), not just the product.
-  return items.map((i) => `${i.productId}:${i.variantId ?? ''}:${i.quantity}`).join(',')
-}
-
 // #90: ship item input for rates/pickup/create — variantId rides along so
 // the server resolves per-line price, MOQ and weight (omitted for flat).
+// #101: the destination address is part of the rates key (lib/ratesKey), so a
+// branch switch re-quotes instead of being swallowed by the throttle above.
 function toOrderItemInput(i: CartItem): { productId: string; variantId?: string; quantity: number } {
   return i.variantId
     ? { productId: i.productId, variantId: i.variantId, quantity: i.quantity }
@@ -61,9 +59,12 @@ function toOrderItemInput(i: CartItem): { productId: string; variantId?: string;
 
 async function loadShippingRates(
   items: CartItem[],
+  addressId: string | null,
   setRatesState: React.Dispatch<React.SetStateAction<RatesState>>,
   setSelectedRate: React.Dispatch<React.SetStateAction<RateOption | null>>,
   setIsManual: React.Dispatch<React.SetStateAction<boolean>>,
+  setAddresses: React.Dispatch<React.SetStateAction<AddressOption[]>>,
+  setSelectedAddressId: React.Dispatch<React.SetStateAction<string | null>>,
   requestIdRef: React.MutableRefObject<number>,
   myRequestId: number
 ) {
@@ -72,27 +73,40 @@ async function loadShippingRates(
   setIsManual(false)
   const result = await getShippingRates({
     items: items.map(toOrderItemInput),
+    ...(addressId ? { addressId } : {}),
   })
   if (requestIdRef.current !== myRequestId) return
   if (!result.ok) {
     if (result.error === 'NO_ADDRESS') {
+      setAddresses([])
       setRatesState({ kind: 'no_address' })
-    } else {
-      const messages: Record<string, string> = {
-        INVALID_CART: 'Beberapa produk tidak lagi tersedia. Keranjang kamu diperbarui.',
-        ORIGIN_NOT_CONFIGURED: 'Pengiriman belum bisa dilakukan. Coba lagi nanti, atau pilih ongkir manual.',
-        RATES_UNAVAILABLE: 'Belum bisa hitung ongkir sekarang. Coba lagi 1 menit, atau pilih ongkir manual.',
-        INVALID_INPUT: 'Permintaan tidak valid',
-        ACCOUNT_INACTIVE: 'Akun Anda tidak aktif. Hubungi tim Agroastery.',
-      }
-      setRatesState({ kind: 'error', message: messages[result.error] ?? 'Terjadi kesalahan. Kalau masih gagal, hubungi tim Agroastery.' })
+      return
     }
+    if (result.error === 'INVALID_ADDRESS') {
+      // The picked branch vanished mid-checkout (staff deleted it). Drop the
+      // selection so the retry re-resolves the default and re-renders the list.
+      setSelectedAddressId(null)
+      setRatesState({
+        kind: 'error',
+        message: 'Alamat yang dipilih sudah tidak tersedia. Pilih ulang alamat pengiriman.',
+      })
+      return
+    }
+    const messages: Record<string, string> = {
+      INVALID_CART: 'Beberapa produk tidak lagi tersedia. Keranjang kamu diperbarui.',
+      ORIGIN_NOT_CONFIGURED: 'Pengiriman belum bisa dilakukan. Coba lagi nanti, atau pilih ongkir manual.',
+      RATES_UNAVAILABLE: 'Belum bisa hitung ongkir sekarang. Coba lagi 1 menit, atau pilih ongkir manual.',
+      INVALID_INPUT: 'Permintaan tidak valid',
+      ACCOUNT_INACTIVE: 'Akun Anda tidak aktif. Hubungi tim Agroastery.',
+    }
+    setRatesState({ kind: 'error', message: messages[result.error] ?? 'Terjadi kesalahan. Kalau masih gagal, hubungi tim Agroastery.' })
     return
   }
+  setAddresses(result.addresses)
   if (result.kind === 'free_shipping') {
-    setRatesState({ kind: 'free_shipping', address: result.address })
+    setRatesState({ kind: 'free_shipping', address: result.address, addresses: result.addresses })
   } else {
-    setRatesState({ kind: 'ready', rates: result.rates, address: result.address })
+    setRatesState({ kind: 'ready', rates: result.rates, address: result.address, addresses: result.addresses })
   }
 }
 
@@ -141,6 +155,10 @@ export default function OrderReviewPage() {
   const [selectedRate, setSelectedRate] = useState<RateOption | null>(null)
   const [isManual, setIsManual] = useState(false)
   const [pickupState, setPickupState] = useState<PickupState>({ kind: 'loading' })
+  // #101: branch list + current pick. `selectedAddressId === null` means "let the
+  // server resolve the staff default"; it is never written back to the address row.
+  const [addresses, setAddresses] = useState<AddressOption[]>([])
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null)
   const requestIdRef = useRef(0)
 
   useEffect(() => {
@@ -148,15 +166,36 @@ export default function OrderReviewPage() {
       router.replace('/portal')
       return
     }
-    const myRequestId = ++requestIdRef.current
     if (fulfillmentMethod === 'SHIPPING') {
-      const key = itemsKey(cart)
+      const key = ratesKey(cart, selectedAddressId)
+      // Throttle BEFORE taking a request id: a skipped call must not orphan the
+      // in-flight one (React StrictMode invokes effects twice in dev, which
+      // otherwise leaves the page stuck on the loading skeleton forever).
       if (!canCallRates(key)) return
-      loadShippingRates(cart, setRatesState, setSelectedRate, setIsManual, requestIdRef, myRequestId)
+      const myRequestId = ++requestIdRef.current
+      loadShippingRates(cart, selectedAddressId, setRatesState, setSelectedRate, setIsManual, setAddresses, setSelectedAddressId, requestIdRef, myRequestId)
     } else {
+      const myRequestId = ++requestIdRef.current
       loadPickupInfo(cart, setPickupState, requestIdRef, myRequestId)
     }
-  }, [router, cart, fulfillmentMethod])
+  }, [router, cart, fulfillmentMethod, selectedAddressId])
+
+  // #101: what the picker shows as checked — an explicit pick, else the address
+  // the server resolved (staff default). Kept separate from `selectedAddressId`
+  // so the initial default quote never triggers a second, identical request.
+  const effectiveAddressId =
+    selectedAddressId ??
+    (ratesState.kind === 'ready' || ratesState.kind === 'free_shipping'
+      ? ratesState.address.id ?? null
+      : null)
+
+  // #101: switching branch re-quotes for the new destination. Only the state
+  // changes here — the effect above owns the request (and its request-id guard
+  // drops any in-flight answer for the address we just left).
+  const handleAddressChange = (addressId: string) => {
+    if (addressId === effectiveAddressId) return
+    setSelectedAddressId(addressId)
+  }
 
   const subtotal = cart.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0)
   // #24: the chargeable shipping cost is only *known* in settled states. While
@@ -202,15 +241,17 @@ export default function OrderReviewPage() {
 
     let shippingSelection
     if (fulfillmentMethod === 'SHIPPING') {
+      const addressPick = effectiveAddressId ? { addressId: effectiveAddressId } : {}
       if (ratesState.kind === 'free_shipping') {
-        shippingSelection = { mode: 'free' }
+        shippingSelection = { mode: 'free', ...addressPick }
       } else if (isManual) {
-        shippingSelection = { mode: 'manual' }
+        shippingSelection = { mode: 'manual', ...addressPick }
       } else if (selectedRate) {
         shippingSelection = {
           mode: 'biteship',
           courier_code: selectedRate.courier_code,
           service_code: selectedRate.service_code,
+          ...addressPick,
         }
       }
     }
@@ -227,7 +268,15 @@ export default function OrderReviewPage() {
       if (result.error_code === 'COURIER_CHANGED') {
         setRatesState({ kind: 'loading' })
         const myRequestId = ++requestIdRef.current
-        loadShippingRates(cart, setRatesState, setSelectedRate, setIsManual, requestIdRef, myRequestId)
+        loadShippingRates(cart, effectiveAddressId, setRatesState, setSelectedRate, setIsManual, setAddresses, setSelectedAddressId, requestIdRef, myRequestId)
+      }
+      if (result.error_code === 'INVALID_ADDRESS') {
+        // The branch was deleted between quote and confirm: drop the stale pick
+        // and re-resolve (the error message below explains what happened).
+        setSelectedAddressId(null)
+        setRatesState({ kind: 'loading' })
+        const myRequestId = ++requestIdRef.current
+        loadShippingRates(cart, null, setRatesState, setSelectedRate, setIsManual, setAddresses, setSelectedAddressId, requestIdRef, myRequestId)
       }
       setError(result.message)
       setSubmitting(false)
@@ -248,6 +297,17 @@ export default function OrderReviewPage() {
 
   // #24: no full-page early return while rates load — items, address chrome and
   // notes stay interactive; only the courier area swaps to skeleton rows.
+  // #101: 2+ saved branches get a picker; 0/1 keep the exact pre-#101 card.
+  const addressBlock = (address: AddressDisplay) =>
+    addresses.length > 1 ? (
+      <AddressPicker
+        addresses={addresses}
+        selectedId={effectiveAddressId}
+        onSelect={handleAddressChange}
+      />
+    ) : (
+      <AddressCard address={address} />
+    )
 
   return (
     <main className="min-h-screen bg-brand-black">
@@ -315,6 +375,14 @@ export default function OrderReviewPage() {
             <>
               {ratesState.kind === 'loading' && (
                 <>
+                  {addresses.length > 1 && (
+                    <AddressPicker
+                      addresses={addresses}
+                      selectedId={effectiveAddressId}
+                      onSelect={handleAddressChange}
+                      disabled
+                    />
+                  )}
                   <CourierSkeletonRows rows={3} />
                   <div className="flex items-center justify-between px-1">
                     <p className="text-brand-parchment text-sm">Ongkir</p>
@@ -327,7 +395,7 @@ export default function OrderReviewPage() {
 
               {ratesState.kind === 'free_shipping' && (
                 <>
-                  <AddressCard address={ratesState.address} />
+                  {addressBlock(ratesState.address)}
                   <div className="rounded-xl border border-brand-honey bg-[rgba(245,235,201,0.06)] px-5 py-3">
                     <p className="text-brand-honey text-sm font-medium">Pengiriman Gratis</p>
                     <p className="text-brand-parchment text-xs">Ongkir ditanggung Agroastery</p>
@@ -344,24 +412,36 @@ export default function OrderReviewPage() {
               {ratesState.kind === 'no_address' && <AddressCardEmpty />}
 
               {ratesState.kind === 'error' && (
-                <div className="rounded-xl border border-[rgba(245,235,201,0.25)] bg-brand-midnight px-5 py-4 flex flex-col gap-3">
-                  <p className="text-brand-parchment text-sm" data-testid="rates-error-message">{ratesState.message}</p>
-                  <button
-                    onClick={() => {
-                      const myRequestId = ++requestIdRef.current
-                      loadShippingRates(cart, setRatesState, setSelectedRate, setIsManual, requestIdRef, myRequestId)
-                    }}
-                    data-testid="retry-rates-button"
-                    className="text-brand-crema text-sm underline underline-offset-4 hover:text-brand-honey transition-colors self-start"
-                  >
-                    Coba lagi
-                  </button>
-                </div>
+                <>
+                  {/* #101: keep the branch list reachable when this destination
+                      can't be quoted — otherwise a failed switch strands the
+                      client on an error box with no way back. */}
+                  {addresses.length > 1 && (
+                    <AddressPicker
+                      addresses={addresses}
+                      selectedId={effectiveAddressId}
+                      onSelect={handleAddressChange}
+                    />
+                  )}
+                  <div className="rounded-xl border border-[rgba(245,235,201,0.25)] bg-brand-midnight px-5 py-4 flex flex-col gap-3">
+                    <p className="text-brand-parchment text-sm" data-testid="rates-error-message">{ratesState.message}</p>
+                    <button
+                      onClick={() => {
+                        const myRequestId = ++requestIdRef.current
+                        loadShippingRates(cart, effectiveAddressId, setRatesState, setSelectedRate, setIsManual, setAddresses, setSelectedAddressId, requestIdRef, myRequestId)
+                      }}
+                      data-testid="retry-rates-button"
+                      className="text-brand-crema text-sm underline underline-offset-4 hover:text-brand-honey transition-colors self-start"
+                    >
+                      Coba lagi
+                    </button>
+                  </div>
+                </>
               )}
 
               {ratesState.kind === 'ready' && (
                 <>
-                  <AddressCard address={ratesState.address} />
+                  {addressBlock(ratesState.address)}
                   <CourierPicker
                     rates={ratesState.rates}
                     selected={selectedRate}

@@ -37,6 +37,17 @@ export default defineConfig({
       },
     },
 
+    // ── #101 multi-branch address picker (own seed: 2 addresses + free shipping) ──
+    {
+      name: 'address-picker',
+      testMatch: ['**/tests/address-picker.spec.ts'],
+      dependencies: ['auth-setup'],
+      use: {
+        ...devices['Desktop Chrome'],
+        storageState: AUTH_CLIENT_FILE,
+      },
+    },
+
     // ── Login page + unauthorized flow (no saved session) ──
     {
       name: 'auth',
