@@ -3,13 +3,13 @@
 import { createClient } from '@/lib/supabase/server'
 import { getActiveClientByEmail } from '@/lib/clients/active-client'
 import { getShippingRatesInputSchema } from '@/lib/schemas/order'
-import { loadShippingContext, groupRatesByCourier, type AddressDisplay, type RateOption } from '@/lib/shipping'
+import { loadShippingContext, groupRatesByCourier, type AddressDisplay, type AddressOption, type RateOption } from '@/lib/shipping'
 import { sendTelegramAlert } from '@/lib/telegram'
 
 export type ShippingRatesResult =
-  | { ok: true; kind: 'free_shipping'; address: AddressDisplay }
-  | { ok: true; kind: 'rates'; rates: RateOption[]; address: AddressDisplay }
-  | { ok: false; error: 'NO_ADDRESS' | 'INVALID_CART' | 'ORIGIN_NOT_CONFIGURED' | 'RATES_UNAVAILABLE' | 'INVALID_INPUT' | 'ACCOUNT_INACTIVE' }
+  | { ok: true; kind: 'free_shipping'; address: AddressDisplay; addresses: AddressOption[] }
+  | { ok: true; kind: 'rates'; rates: RateOption[]; address: AddressDisplay; addresses: AddressOption[] }
+  | { ok: false; error: 'NO_ADDRESS' | 'INVALID_ADDRESS' | 'INVALID_CART' | 'ORIGIN_NOT_CONFIGURED' | 'RATES_UNAVAILABLE' | 'INVALID_INPUT' | 'ACCOUNT_INACTIVE' }
 
 export async function getShippingRates(input: unknown): Promise<ShippingRatesResult> {
   const parsed = getShippingRatesInputSchema.safeParse(input)
@@ -31,7 +31,7 @@ export async function getShippingRates(input: unknown): Promise<ShippingRatesRes
     return { ok: false, error: 'ACCOUNT_INACTIVE' }
   }
 
-  const ctx = await loadShippingContext(client.id, parsed.data.items).catch((err) => {
+  const ctx = await loadShippingContext(client.id, parsed.data.items, parsed.data.addressId).catch((err) => {
     console.error('[getShippingRates] Biteship call failed:', err)
     sendTelegramAlert('biteship_rates_failed', `Biteship rates unavailable. Error: ${err instanceof Error ? err.message : String(err)}`).catch(() => {})
     return null
@@ -46,10 +46,10 @@ export async function getShippingRates(input: unknown): Promise<ShippingRatesRes
   }
 
   if (ctx.kind === 'free_shipping') {
-    return { ok: true, kind: 'free_shipping', address: ctx.address }
+    return { ok: true, kind: 'free_shipping', address: ctx.address, addresses: ctx.addresses }
   }
 
   const rates = groupRatesByCourier(ctx.rates)
 
-  return { ok: true, kind: 'rates', rates, address: ctx.address }
+  return { ok: true, kind: 'rates', rates, address: ctx.address, addresses: ctx.addresses }
 }

@@ -1,12 +1,13 @@
 import { z } from 'zod'
 
 export const shippingSelectionSchema = z.discriminatedUnion('mode', [
-  z.object({ mode: z.literal('free') }),
-  z.object({ mode: z.literal('manual') }),
+  z.object({ mode: z.literal('free'), addressId: z.string().uuid().optional() }),
+  z.object({ mode: z.literal('manual'), addressId: z.string().uuid().optional() }),
   z.object({
     mode: z.literal('biteship'),
     courier_code: z.string().min(1).max(64),
     service_code: z.string().min(1).max(64),
+    addressId: z.string().uuid().optional(),
   }),
 ])
 
@@ -21,6 +22,8 @@ export const orderItemInputSchema = z.object({
 
 export const getShippingRatesInputSchema = z.object({
   items: z.array(orderItemInputSchema).min(1).max(100),
+  // #101: chosen branch, validated against this client's own rows server-side.
+  addressId: z.string().uuid().optional(),
 })
 
 export const fulfillmentMethodSchema = z.enum(['SHIPPING', 'PICKUP']).default('SHIPPING')

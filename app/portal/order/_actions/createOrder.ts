@@ -5,7 +5,8 @@ import { getActiveClientByEmail } from '@/lib/clients/active-client'
 import { createOrderInputSchema } from '@/lib/schemas/order'
 import {
   loadShippingContext,
-  resolveDefaultAddress,
+  resolveCheckoutAddress,
+  addressToDisplay,
   findRateMatch,
   validateCartItems,
   getPickupLocation,
@@ -89,10 +90,17 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
       return { ok: false, error_code: 'NO_SHIPMENT_MODE', message: 'Metode pengiriman tidak dipilih' }
     }
 
+    // #101: the branch the client picked (validated against their own rows).
+    const selectedAddressId = shippingSelection.addressId
+
     const SHIPPING_ERRORS: Record<string, { error_code: string; message: string }> = {
       NO_ADDRESS: {
         error_code: 'NO_ADDRESS',
         message: 'Alamat pengiriman belum dipilih. Tambahkan alamat di profil kamu.',
+      },
+      INVALID_ADDRESS: {
+        error_code: 'INVALID_ADDRESS',
+        message: 'Alamat yang dipilih sudah tidak tersedia. Pilih ulang alamat pengiriman.',
       },
       INVALID_CART: {
         error_code: 'INVALID_CART',
@@ -109,7 +117,7 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
     }
 
     if (shippingSelection.mode === 'free') {
-      const ctx = await loadShippingContext(client.id, parsed.data.items)
+      const ctx = await loadShippingContext(client.id, parsed.data.items, selectedAddressId)
       if (!ctx.ok) {
         const err = SHIPPING_ERRORS[ctx.error]
         return err
@@ -138,6 +146,11 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
       if (!itemsResult.ok) {
         return { ok: false, ...SHIPPING_ERRORS['INVALID_CART'] }
       }
+      // #101: manual ongkir still needs the chosen branch snapped onto the order.
+      const addressSelection = await resolveCheckoutAddress(client.id, selectedAddressId)
+      if (!addressSelection.ok) {
+        return { ok: false, ...SHIPPING_ERRORS[addressSelection.error] }
+      }
       orderItems = itemsResult.validatedItems
       dbShippingCost = null
       dbShippingCourier = MANUAL_COURIER_CODE
@@ -145,14 +158,14 @@ export async function createOrder(input: unknown): Promise<CreateOrderResult> {
       dbShippingEtd = null
       notifShippingCourier = 'Manual (admin)'
       notifShippingService = undefined
-      shippingAddress = await resolveDefaultAddress(client.id)
+      shippingAddress = addressToDisplay(addressSelection.address)
 
     } else {
       // biteship
       if (shippingSelection.mode !== 'biteship') {
         return { ok: false, error_code: 'INVALID_SHIPMENT_MODE', message: 'Metode pengiriman tidak valid' }
       }
-      const ctx = await loadShippingContext(client.id, parsed.data.items)
+      const ctx = await loadShippingContext(client.id, parsed.data.items, selectedAddressId)
       if (!ctx.ok) {
         const err = SHIPPING_ERRORS[ctx.error]
         return err
